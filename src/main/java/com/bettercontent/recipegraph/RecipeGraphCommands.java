@@ -18,8 +18,14 @@ public final class RecipeGraphCommands {
                         context.getSource().sendSuccess(() -> Component.literal(
                                 "Recipe graph " + result.snapshotId() + ": " + result.recipeCount()
                                         + " recipes, " + result.partialCount() + " partial, "
-                                        + result.errorCount() + " errors -> " + result.outputDirectory()), true);
-                        return result.errorCount() == 0 ? 1 : 0;
+                                        + result.errorCount() + " errors, "
+                                        + (result.complete() ? "complete" : "INCOMPLETE")
+                                        + " -> " + result.outputDirectory()), true);
+                        if (!result.complete()) {
+                            context.getSource().sendFailure(Component.literal(
+                                    "Runtime evidence is incomplete and must not be promoted; inspect snapshot.json and recipe issues."));
+                        }
+                        return result.complete() ? 1 : 0;
                     }
                     context.getSource().sendFailure(Component.literal("Recipe graph dump failed: " + result.message()));
                     return 0;

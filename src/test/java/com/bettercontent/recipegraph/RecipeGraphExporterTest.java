@@ -6,6 +6,8 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 final class RecipeGraphExporterTest {
     @Test
@@ -24,5 +26,19 @@ final class RecipeGraphExporterTest {
         assertEquals(first, RuntimeEvidenceExporter.tradeSeed("minecraft:farmer", "minecraft:plains", 2, 3, 0));
         assertNotEquals(first, RuntimeEvidenceExporter.tradeSeed("minecraft:farmer", "minecraft:plains", 2, 3, 1));
         assertNotEquals(first, RuntimeEvidenceExporter.tradeSeed("minecraft:librarian", "minecraft:plains", 2, 3, 0));
+    }
+
+    @Test
+    void serializedIngredientCountsSurviveNormalization() {
+        assertEquals(4, RecipeGraphExporter.ingredientCount(
+                JsonParser.parseString("{\"tag\":\"forge:ingots/iron\",\"count\":4}"), null));
+    }
+
+    @Test
+    void completenessRequiresEveryNormalizerAndRuntimeExporterToSucceed() {
+        assertTrue(RecipeGraphExporter.isComplete(0, 0, 0));
+        assertFalse(RecipeGraphExporter.isComplete(1, 0, 0));
+        assertFalse(RecipeGraphExporter.isComplete(0, 1, 0));
+        assertFalse(RecipeGraphExporter.isComplete(0, 0, 1));
     }
 }

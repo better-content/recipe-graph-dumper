@@ -61,8 +61,12 @@ final class RuntimeEvidenceExporter {
                 issues.add(issue(key.toString(), error));
             }
         }
+        out.addProperty("registered_table_count", keys.size());
         out.addProperty("table_count", tables.size());
         out.addProperty("error_count", issues.size());
+        out.addProperty("complete", issues.isEmpty() && tables.size() == keys.size());
+        out.addProperty("evidence_mode", "live_effective_loot_table_serialization");
+        out.addProperty("limitation", "Loaded table definitions do not prove that a chest, entity, structure, fishing, ritual, or other loot context occurs in reachable gameplay.");
         out.add("tables", tables);
         out.add("issues", issues);
         return out;
@@ -73,6 +77,7 @@ final class RuntimeEvidenceExporter {
         JsonArray villagers = new JsonArray();
         JsonArray wanderer = new JsonArray();
         JsonArray issues = new JsonArray();
+        TradeCounters counters = new TradeCounters();
 
         Villager entity = EntityType.VILLAGER.create(server.overworld());
         if (entity == null) {
@@ -80,7 +85,7 @@ final class RuntimeEvidenceExporter {
         } else {
             VillagerTrades.TRADES.entrySet().stream()
                     .sorted(Comparator.comparing(entry -> registryId(BuiltInRegistries.VILLAGER_PROFESSION, entry.getKey())))
-                    .forEach(entry -> exportProfession(entry.getKey(), entry.getValue(), entity, villagers, issues));
+                    .forEach(entry -> exportProfession(entry.getKey(), entry.getValue(), entity, villagers, issues, counters));
             entity.discard();
         }
 
@@ -92,11 +97,18 @@ final class RuntimeEvidenceExporter {
                     .sorted(Comparator.comparingInt(it -> it.getIntKey()))
                     .forEach(entry -> exportListings(
                             "minecraft:wandering_trader", "minecraft:wandering_trader", entry.getIntKey(),
-                            entry.getValue(), wanderingEntity, wanderer, issues));
+                            entry.getValue(), wanderingEntity, wanderer, issues, counters));
             wanderingEntity.discard();
         }
 
         out.addProperty("sampling", "deterministic_16_seeds_per_listing");
+        out.addProperty("evidence_mode", "deterministic_listing_sample");
+        out.addProperty("complete", false);
+        out.addProperty("sample_contract_complete", issues.isEmpty());
+        out.addProperty("listing_context_count", counters.listingContexts);
+        out.addProperty("sample_attempt_count", counters.sampleAttempts);
+        out.addProperty("null_offer_count", counters.nullOffers);
+        out.addProperty("limitation", "Representative offers are sampled from live listing functions; this is not an exhaustive enumeration of randomized or state-dependent offers.");
         out.addProperty("villager_offer_count", villagers.size());
         out.addProperty("wandering_offer_count", wanderer.size());
         out.addProperty("error_count", issues.size());
@@ -111,7 +123,8 @@ final class RuntimeEvidenceExporter {
             it.unimi.dsi.fastutil.ints.Int2ObjectMap<VillagerTrades.ItemListing[]> levels,
             Villager entity,
             JsonArray output,
-            JsonArray issues
+            JsonArray issues,
+            TradeCounters counters
     ) {
         String professionId = registryId(BuiltInRegistries.VILLAGER_PROFESSION, profession);
         List<VillagerType> types = BuiltInRegistries.VILLAGER_TYPE.stream()
@@ -121,7 +134,7 @@ final class RuntimeEvidenceExporter {
             for (VillagerType type : types) {
                 String typeId = registryId(BuiltInRegistries.VILLAGER_TYPE, type);
                 entity.setVillagerData(new VillagerData(type, profession, level.getIntKey()));
-                exportListings(professionId, typeId, level.getIntKey(), level.getValue(), entity, output, issues);
+                exportListings(professionId, typeId, level.getIntKey(), level.getValue(), entity, output, issues, counters);
             }
         });
     }
@@ -133,16 +146,22 @@ final class RuntimeEvidenceExporter {
             VillagerTrades.ItemListing[] listings,
             Entity entity,
             JsonArray output,
-            JsonArray issues
+            JsonArray issues,
+            TradeCounters counters
     ) {
         for (int listingIndex = 0; listingIndex < listings.length; listingIndex++) {
+            counters.listingContexts++;
             VillagerTrades.ItemListing listing = listings[listingIndex];
             Map<String, JsonObject> distinct = new LinkedHashMap<>();
             for (int sample = 0; sample < TRADE_SAMPLE_COUNT; sample++) {
+                counters.sampleAttempts++;
                 try {
                     long seed = tradeSeed(profession, villagerType, level, listingIndex, sample);
                     MerchantOffer offer = listing.getOffer(entity, RandomSource.create(seed));
-                    if (offer == null) continue;
+                    if (offer == null) {
+                        counters.nullOffers++;
+                        continue;
+                    }
                     JsonObject row = offerJson(profession, villagerType, level, listingIndex, listing, offer, sample);
                     distinct.putIfAbsent(offer.createTag().toString(), row);
                 } catch (Exception error) {
@@ -185,17 +204,30 @@ final class RuntimeEvidenceExporter {
         JsonObject out = new JsonObject();
         RegistryOps<JsonElement> ops = RegistryOps.create(JsonOps.INSTANCE, access);
         JsonArray issues = new JsonArray();
-        out.add("configured_features", encodeRegistry(access, Registries.CONFIGURED_FEATURE, ConfiguredFeature.DIRECT_CODEC, ops, issues));
-        out.add("placed_features", encodeRegistry(access, Registries.PLACED_FEATURE, PlacedFeature.DIRECT_CODEC, ops, issues));
-        out.add("biomes", encodeRegistry(access, Registries.BIOME, Biome.DIRECT_CODEC, ops, issues));
-        out.add("structures", encodeRegistry(access, Registries.STRUCTURE, Structure.DIRECT_CODEC, ops, issues));
-        out.add("biome_modifiers", encodeRegistry(access, ForgeRegistries.Keys.BIOME_MODIFIERS, BiomeModifier.DIRECT_CODEC, ops, issues));
+        JsonObject counts = new JsonObject();
+        addRegistry(out, counts, "configured_features", encodeRegistry(access, Registries.CONFIGURED_FEATURE, ConfiguredFeature.DIRECT_CODEC, ops, issues));
+        addRegistry(out, counts, "placed_features", encodeRegistry(access, Registries.PLACED_FEATURE, PlacedFeature.DIRECT_CODEC, ops, issues));
+        addRegistry(out, counts, "biomes", encodeRegistry(access, Registries.BIOME, Biome.DIRECT_CODEC, ops, issues));
+        addRegistry(out, counts, "structures", encodeRegistry(access, Registries.STRUCTURE, Structure.DIRECT_CODEC, ops, issues));
+        addRegistry(out, counts, "biome_modifiers", encodeRegistry(access, ForgeRegistries.Keys.BIOME_MODIFIERS, BiomeModifier.DIRECT_CODEC, ops, issues));
+        out.add("registry_counts", counts);
         out.addProperty("error_count", issues.size());
+        out.addProperty("complete", issues.isEmpty());
+        out.addProperty("evidence_mode", "live_worldgen_registry_serialization");
+        out.addProperty("limitation", "Registry presence and codec state do not prove placement frequency, spatial distribution, biome attachment, or occurrence in an existing world.");
         out.add("issues", issues);
         return out;
     }
 
-    private static <T> JsonObject encodeRegistry(
+    private static void addRegistry(JsonObject out, JsonObject counts, String name, EncodedRegistry encoded) {
+        out.add(name, encoded.rows());
+        JsonObject count = new JsonObject();
+        count.addProperty("registered", encoded.registered());
+        count.addProperty("encoded", encoded.rows().size());
+        counts.add(name, count);
+    }
+
+    private static <T> EncodedRegistry encodeRegistry(
             RegistryAccess access,
             ResourceKey<? extends Registry<T>> key,
             Codec<T> codec,
@@ -208,7 +240,7 @@ final class RuntimeEvidenceExporter {
             registry = access.registryOrThrow(key);
         } catch (Exception error) {
             issues.add(issue(key.location().toString(), error));
-            return rows;
+            return new EncodedRegistry(rows, 0);
         }
         registry.entrySet().stream().sorted(Comparator.comparing(entry -> entry.getKey().location().toString())).forEach(entry -> {
             String id = entry.getKey().location().toString();
@@ -223,7 +255,7 @@ final class RuntimeEvidenceExporter {
                 issues.add(issue(key.location() + "/" + id, error));
             }
         });
-        return rows;
+        return new EncodedRegistry(rows, registry.size());
     }
 
     private static JsonObject stack(ItemStack stack) {
@@ -243,6 +275,14 @@ final class RuntimeEvidenceExporter {
         seed = seed * 31 + index;
         return seed * 31 + sample;
     }
+
+    private static final class TradeCounters {
+        int listingContexts;
+        int sampleAttempts;
+        int nullOffers;
+    }
+
+    private record EncodedRegistry(JsonObject rows, int registered) {}
 
     private static JsonObject issue(String id, Exception error) {
         JsonObject issue = new JsonObject();

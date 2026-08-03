@@ -41,6 +41,7 @@ import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.lang.reflect.Method;
 
 public final class RecipeGraphExporter {
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
@@ -84,8 +85,12 @@ public final class RecipeGraphExporter {
 
             JsonObject graph = envelope(GRAPH_SCHEMA, snapshotId, generatedAt, server);
             graph.addProperty("recipe_count", recipes.size());
+            graph.addProperty("normalized_recipe_count", recipes.size() - partial);
             graph.addProperty("partial_count", partial);
             graph.addProperty("error_count", errors);
+            graph.addProperty("complete", isComplete(partial, errors, 0));
+            graph.addProperty("evidence_mode", "live_recipe_manager_exact_when_complete");
+            graph.addProperty("limitation", "Rows with parsed=false or normalization=partial are retained diagnostics, not complete machine-navigable edges.");
             graph.add("coverage", coverageJson(coverage));
             graph.add("recipes", recipeRows);
 
@@ -94,6 +99,7 @@ public final class RecipeGraphExporter {
             registries.add("blocks", registryRows(BuiltInRegistries.BLOCK));
             registries.add("fluids", registryRows(BuiltInRegistries.FLUID));
             registries.add("entities", registryRows(BuiltInRegistries.ENTITY_TYPE));
+            markExactSnapshot(registries, "live_registry_snapshot");
 
             JsonObject tags = envelope(TAG_SCHEMA, snapshotId, generatedAt, server);
             RegistryAccess access = server.registryAccess();
@@ -101,6 +107,7 @@ public final class RecipeGraphExporter {
             tags.add("block_tags", tagRows(access.registryOrThrow(net.minecraft.core.registries.Registries.BLOCK)));
             tags.add("fluid_tags", tagRows(access.registryOrThrow(net.minecraft.core.registries.Registries.FLUID)));
             tags.add("entity_tags", tagRows(access.registryOrThrow(net.minecraft.core.registries.Registries.ENTITY_TYPE)));
+            markExactSnapshot(tags, "live_tag_snapshot");
 
             JsonObject mods = envelope(MOD_SCHEMA, snapshotId, generatedAt, server);
             JsonObject modRows = new JsonObject();
@@ -111,6 +118,7 @@ public final class RecipeGraphExporter {
                 modRows.add(info.getModId(), row);
             });
             mods.add("mods", modRows);
+            markExactSnapshot(mods, "live_loaded_mod_snapshot");
 
             JsonObject loot = envelope(LOOT_SCHEMA, snapshotId, generatedAt, server);
             copyInto(loot, RuntimeEvidenceExporter.loot(server));
@@ -129,21 +137,38 @@ public final class RecipeGraphExporter {
             writeAtomic(output.resolve("trades.json"), trades);
             writeAtomic(output.resolve("worldgen.json"), worldgen);
 
-            JsonObject completion = envelope("bc.runtime_dump_completion.v1", snapshotId, generatedAt, server);
+            int runtimeEvidenceErrors = loot.get("error_count").getAsInt()
+                    + trades.get("error_count").getAsInt()
+                    + worldgen.get("error_count").getAsInt();
+            boolean complete = isComplete(partial, errors, runtimeEvidenceErrors)
+                    && loot.get("complete").getAsBoolean()
+                    && trades.get("sample_contract_complete").getAsBoolean()
+                    && worldgen.get("complete").getAsBoolean();
+            JsonObject completion = envelope("bc.runtime_dump_completion.v2", snapshotId, generatedAt, server);
             completion.addProperty("recipe_count", recipes.size());
             completion.addProperty("partial_count", partial);
             completion.addProperty("error_count", errors);
             completion.addProperty("loot_table_count", loot.get("table_count").getAsInt());
             completion.addProperty("trade_offer_count", trades.get("villager_offer_count").getAsInt() + trades.get("wandering_offer_count").getAsInt());
-            completion.addProperty("runtime_evidence_error_count",
-                    loot.get("error_count").getAsInt() + trades.get("error_count").getAsInt() + worldgen.get("error_count").getAsInt());
+            completion.addProperty("runtime_evidence_error_count", runtimeEvidenceErrors);
+            completion.addProperty("complete", complete);
+            completion.addProperty("evidence_state", complete ? "complete" : "incomplete");
+            JsonObject surfaces = new JsonObject();
+            surfaces.add("recipes", surface("exact", graph.get("complete").getAsBoolean(), false));
+            surfaces.add("registries", surface("exact", true, false));
+            surfaces.add("tags", surface("exact", true, false));
+            surfaces.add("mods", surface("exact", true, false));
+            surfaces.add("loot", surface("exact_loaded_tables", loot.get("complete").getAsBoolean(), false));
+            surfaces.add("trades", surface("deterministic_sample", trades.get("sample_contract_complete").getAsBoolean(), true));
+            surfaces.add("worldgen", surface("exact_registry_serialization", worldgen.get("complete").getAsBoolean(), false));
+            completion.add("surfaces", surfaces);
             JsonArray files = new JsonArray();
             for (String name : List.of("recipes.json", "registries.json", "tags.json", "mods.json", "loot.json", "trades.json", "worldgen.json")) {
                 files.add(name);
             }
             completion.add("files", files);
             writeAtomic(output.resolve("snapshot.json"), completion);
-            return new DumpResult(true, snapshotId, recipes.size(), partial, errors, output.toString(), "ok");
+            return new DumpResult(true, complete, snapshotId, recipes.size(), partial, errors, output.toString(), complete ? "ok" : "incomplete");
         } catch (Exception error) {
             return DumpResult.failure(error.getClass().getSimpleName() + ": " + error.getMessage(), output.toString());
         }
@@ -151,6 +176,24 @@ public final class RecipeGraphExporter {
 
     private static void copyInto(JsonObject target, JsonObject source) {
         source.entrySet().forEach(entry -> target.add(entry.getKey(), entry.getValue()));
+    }
+
+    private static void markExactSnapshot(JsonObject target, String mode) {
+        target.addProperty("evidence_mode", mode);
+        target.addProperty("complete", true);
+        target.addProperty("error_count", 0);
+    }
+
+    private static JsonObject surface(String mode, boolean completeForContract, boolean sampled) {
+        JsonObject out = new JsonObject();
+        out.addProperty("mode", mode);
+        out.addProperty("complete_for_contract", completeForContract);
+        out.addProperty("sampled", sampled);
+        return out;
+    }
+
+    static boolean isComplete(int partial, int errors, int runtimeEvidenceErrors) {
+        return partial == 0 && errors == 0 && runtimeEvidenceErrors == 0;
     }
 
     private static RecipeExport exportRecipe(Recipe<?> recipe, RegistryAccess access) {
@@ -169,10 +212,17 @@ public final class RecipeGraphExporter {
         JsonArray issues = new JsonArray();
         JsonArray groups = new JsonArray();
         JsonArray flatInputs = new JsonArray();
+        JsonArray outputGroups = new JsonArray();
         boolean partial = false;
+        String adapter = null;
         try {
+            List<Ingredient> ingredients = recipe.getIngredients();
+            if (isPneumaticPressureChamber(recipe, type)) {
+                ingredients = pneumaticPressureInputs(recipe);
+                adapter = "pneumaticcraft:pressure_chamber_display_api";
+            }
             int slot = 0;
-            for (Ingredient ingredient : recipe.getIngredients()) {
+            for (Ingredient ingredient : ingredients) {
                 JsonObject group = new JsonObject();
                 group.addProperty("slot", slot++);
                 JsonElement ingredientJson = null;
@@ -189,6 +239,7 @@ public final class RecipeGraphExporter {
                     JsonObject tag = new JsonObject();
                     tag.addProperty("kind", "tag");
                     tag.addProperty("id", tagId);
+                    tag.addProperty("count", ingredientCount(ingredientJson, ingredient));
                     flatInputs.add(tag);
                     group.addProperty("membership", "generated/runtime-dumps/tags.json#item_tags/" + tagId);
                 } else {
@@ -215,9 +266,35 @@ public final class RecipeGraphExporter {
 
         JsonArray outputs = new JsonArray();
         try {
-            ItemStack result = recipe.getResultItem(access);
-            if (!result.isEmpty()) outputs.add(stackJson(result, "item"));
-            else if (!recipe.isSpecial()) {
+            if (adapter != null) {
+                int slot = 0;
+                for (List<ItemStack> alternatives : pneumaticPressureOutputs(recipe)) {
+                    JsonObject group = new JsonObject();
+                    group.addProperty("slot", slot++);
+                    JsonArray rows = new JsonArray();
+                    for (ItemStack stack : alternatives) {
+                        if (stack.isEmpty()) continue;
+                        JsonObject stackRow = stackJson(stack, "item");
+                        rows.add(stackRow);
+                        outputs.add(stackRow.deepCopy());
+                    }
+                    group.add("alternatives", rows);
+                    outputGroups.add(group);
+                }
+            } else {
+                ItemStack result = recipe.getResultItem(access);
+                if (!result.isEmpty()) {
+                    JsonObject stackRow = stackJson(result, "item");
+                    outputs.add(stackRow);
+                    JsonObject group = new JsonObject();
+                    group.addProperty("slot", 0);
+                    JsonArray rows = new JsonArray();
+                    rows.add(stackRow.deepCopy());
+                    group.add("alternatives", rows);
+                    outputGroups.add(group);
+                }
+            }
+            if (outputs.isEmpty()) {
                 issues.add("no static primary output");
                 partial = true;
             }
@@ -226,6 +303,7 @@ public final class RecipeGraphExporter {
             partial = true;
         }
         row.add("outputs", outputs);
+        row.add("output_groups", outputGroups);
         row.add("catalysts", new JsonArray());
         row.add("fluids_in", new JsonArray());
         row.add("fluids_out", new JsonArray());
@@ -235,6 +313,14 @@ public final class RecipeGraphExporter {
         requirements.add("time", null);
         requirements.add("heat", null);
         requirements.add("pressure", null);
+        if (adapter != null) {
+            try {
+                requirements.addProperty("pressure", pneumaticPressure(recipe));
+            } catch (Exception error) {
+                issues.add("pressure: " + describe(error));
+                partial = true;
+            }
+        }
         row.add("requirements", requirements);
         JsonArray machines = new JsonArray();
         JsonObject machine = new JsonObject();
@@ -262,11 +348,65 @@ public final class RecipeGraphExporter {
         } finally {
             buffer.release();
         }
+        if (groups.isEmpty() && outputs.isEmpty()) {
+            issues.add("no normalized inputs or outputs");
+            partial = true;
+        }
         row.add("serializer_payload", payload);
         row.add("issues", issues);
-        row.addProperty("normalization", payloadError ? "error" : partial ? "partial" : "standard");
+        if (adapter != null) row.addProperty("normalization_adapter", adapter);
+        row.addProperty("normalization", payloadError ? "error" : partial ? "partial" : adapter != null ? "adapter" : "standard");
         row.addProperty("parsed", !partial);
         return new RecipeExport(row, type, partial, payloadError);
+    }
+
+    private static boolean isPneumaticPressureChamber(Recipe<?> recipe, String type) {
+        return type.equals("pneumaticcraft:pressure_chamber")
+                && hasPublicMethod(recipe.getClass(), "getInputsForDisplay")
+                && hasPublicMethod(recipe.getClass(), "getResultsForDisplay")
+                && hasPublicMethod(recipe.getClass(), "getCraftingPressureForDisplay");
+    }
+
+    private static boolean hasPublicMethod(Class<?> type, String name) {
+        try {
+            type.getMethod(name);
+            return true;
+        } catch (NoSuchMethodException ignored) {
+            return false;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Ingredient> pneumaticPressureInputs(Recipe<?> recipe) throws ReflectiveOperationException {
+        Method method = recipe.getClass().getMethod("getInputsForDisplay");
+        return (List<Ingredient>) method.invoke(recipe);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<List<ItemStack>> pneumaticPressureOutputs(Recipe<?> recipe) throws ReflectiveOperationException {
+        Method method = recipe.getClass().getMethod("getResultsForDisplay");
+        return (List<List<ItemStack>>) method.invoke(recipe);
+    }
+
+    private static float pneumaticPressure(Recipe<?> recipe) throws ReflectiveOperationException {
+        Method method = recipe.getClass().getMethod("getCraftingPressureForDisplay");
+        return ((Number) method.invoke(recipe)).floatValue();
+    }
+
+    static int ingredientCount(JsonElement ingredient, Ingredient fallback) {
+        if (ingredient != null && ingredient.isJsonObject()) {
+            JsonElement count = ingredient.getAsJsonObject().get("count");
+            if (count != null && count.isJsonPrimitive() && count.getAsJsonPrimitive().isNumber()) {
+                return Math.max(1, count.getAsInt());
+            }
+        }
+        int maximum = 1;
+        try {
+            for (ItemStack stack : fallback.getItems()) maximum = Math.max(maximum, stack.getCount());
+        } catch (Exception ignored) {
+            // The surrounding normalizer reports ingredient expansion failures.
+        }
+        return maximum;
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})

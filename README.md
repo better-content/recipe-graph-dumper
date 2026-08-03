@@ -11,6 +11,15 @@ with 16 deterministic seeds for every villager type. It preserves dynamic
 listing classes and representative offer NBT without claiming that a finite
 sample enumerates every possible randomized offer.
 
+`snapshot.json` is complete only when every live recipe has a fully normalized
+machine edge, every serializer payload succeeds, and the exact loot/worldgen
+plus sampled-trade export contracts report no errors. Incomplete rows and raw
+serializer payloads are retained for adapter work, but the command returns a
+failure result and pack tooling must not promote or fingerprint that snapshot
+as authoritative. Worldgen registry data proves configured live state, not
+placement frequency or occurrence in a generated world; loaded loot tables
+likewise do not prove that their runtime context is reachable.
+
 The command is intentionally the only trigger. The mod performs no work during
 startup, reload, or player synchronization.
 

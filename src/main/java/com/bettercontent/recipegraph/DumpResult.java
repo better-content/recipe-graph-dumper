@@ -2,6 +2,7 @@ package com.bettercontent.recipegraph;
 
 public record DumpResult(
         boolean success,
+        boolean complete,
         String snapshotId,
         int recipeCount,
         int partialCount,
@@ -10,6 +11,6 @@ public record DumpResult(
         String message
 ) {
     static DumpResult failure(String message, String outputDirectory) {
-        return new DumpResult(false, "UNKNOWN", 0, 0, 1, outputDirectory, message);
+        return new DumpResult(false, false, "UNKNOWN", 0, 0, 1, outputDirectory, message);
     }
 }

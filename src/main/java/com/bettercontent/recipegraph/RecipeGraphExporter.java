@@ -48,6 +48,9 @@ public final class RecipeGraphExporter {
     private static final String REGISTRY_SCHEMA = "bc.registries.v2";
     private static final String TAG_SCHEMA = "bc.tags.v2";
     private static final String MOD_SCHEMA = "bc.mods.v2";
+    private static final String LOOT_SCHEMA = "bc.loot.v1";
+    private static final String TRADE_SCHEMA = "bc.trades.v1";
+    private static final String WORLDGEN_SCHEMA = "bc.worldgen.v1";
 
     private RecipeGraphExporter() {}
 
@@ -109,20 +112,45 @@ public final class RecipeGraphExporter {
             });
             mods.add("mods", modRows);
 
+            JsonObject loot = envelope(LOOT_SCHEMA, snapshotId, generatedAt, server);
+            copyInto(loot, RuntimeEvidenceExporter.loot(server));
+
+            JsonObject trades = envelope(TRADE_SCHEMA, snapshotId, generatedAt, server);
+            copyInto(trades, RuntimeEvidenceExporter.trades(server));
+
+            JsonObject worldgen = envelope(WORLDGEN_SCHEMA, snapshotId, generatedAt, server);
+            copyInto(worldgen, RuntimeEvidenceExporter.worldgen(server.registryAccess()));
+
             writeAtomic(output.resolve("recipes.json"), graph);
             writeAtomic(output.resolve("registries.json"), registries);
             writeAtomic(output.resolve("tags.json"), tags);
             writeAtomic(output.resolve("mods.json"), mods);
+            writeAtomic(output.resolve("loot.json"), loot);
+            writeAtomic(output.resolve("trades.json"), trades);
+            writeAtomic(output.resolve("worldgen.json"), worldgen);
 
             JsonObject completion = envelope("bc.runtime_dump_completion.v1", snapshotId, generatedAt, server);
             completion.addProperty("recipe_count", recipes.size());
             completion.addProperty("partial_count", partial);
             completion.addProperty("error_count", errors);
+            completion.addProperty("loot_table_count", loot.get("table_count").getAsInt());
+            completion.addProperty("trade_offer_count", trades.get("villager_offer_count").getAsInt() + trades.get("wandering_offer_count").getAsInt());
+            completion.addProperty("runtime_evidence_error_count",
+                    loot.get("error_count").getAsInt() + trades.get("error_count").getAsInt() + worldgen.get("error_count").getAsInt());
+            JsonArray files = new JsonArray();
+            for (String name : List.of("recipes.json", "registries.json", "tags.json", "mods.json", "loot.json", "trades.json", "worldgen.json")) {
+                files.add(name);
+            }
+            completion.add("files", files);
             writeAtomic(output.resolve("snapshot.json"), completion);
             return new DumpResult(true, snapshotId, recipes.size(), partial, errors, output.toString(), "ok");
         } catch (Exception error) {
             return DumpResult.failure(error.getClass().getSimpleName() + ": " + error.getMessage(), output.toString());
         }
+    }
+
+    private static void copyInto(JsonObject target, JsonObject source) {
+        source.entrySet().forEach(entry -> target.add(entry.getKey(), entry.getValue()));
     }
 
     private static RecipeExport exportRecipe(Recipe<?> recipe, RegistryAccess access) {
@@ -279,6 +307,9 @@ public final class RecipeGraphExporter {
                 if (blockItem != net.minecraft.world.item.Items.AIR) {
                     row.addProperty("item_id", id(ForgeRegistries.ITEMS.getKey(blockItem)));
                 }
+                row.addProperty("loot_table", block.getLootTable().toString());
+            } else if (value instanceof EntityType<?> entityType) {
+                row.addProperty("loot_table", entityType.getDefaultLootTable().toString());
             }
             rows.add(key.toString(), row);
         });

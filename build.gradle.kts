@@ -58,6 +58,9 @@ tasks.processResources {
 }
 
 tasks.named<Jar>("jar") {
+    manifest {
+        attributes["MixinConfigs"] = "bcrecipegraph.mixins.json"
+    }
     finalizedBy("reobfJar")
 }
 

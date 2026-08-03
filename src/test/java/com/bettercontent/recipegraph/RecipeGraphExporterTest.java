@@ -1,7 +1,10 @@
 package com.bettercontent.recipegraph;
 
 import com.google.gson.JsonParser;
+import com.google.gson.JsonObject;
 import org.junit.jupiter.api.Test;
+
+import java.lang.reflect.Method;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -46,11 +49,32 @@ final class RecipeGraphExporterTest {
     void semanticAccessorsAreClassifiedWithoutGuessingUnrelatedGetters() {
         assertEquals(SemanticRecipeAdapter.Direction.INPUT, SemanticRecipeAdapter.direction("getInputFluid"));
         assertEquals(SemanticRecipeAdapter.Direction.OUTPUT, SemanticRecipeAdapter.direction("getOutputWithByproducts"));
+        assertEquals(SemanticRecipeAdapter.Direction.INPUT, SemanticRecipeAdapter.direction("getFluidIn"));
+        assertEquals(SemanticRecipeAdapter.Direction.OUTPUT, SemanticRecipeAdapter.direction("getFluidOut"));
         assertEquals(SemanticRecipeAdapter.Direction.CATALYST, SemanticRecipeAdapter.direction("getCatalyst"));
         assertEquals(SemanticRecipeAdapter.Direction.UNKNOWN, SemanticRecipeAdapter.direction("getId"));
         assertEquals("pressure", SemanticRecipeAdapter.requirement("getRequiredPressure"));
         assertEquals("heat", SemanticRecipeAdapter.requirement("getTemperature"));
         assertEquals("time", SemanticRecipeAdapter.requirement("getTicks"));
+        assertEquals("energy", SemanticRecipeAdapter.requirement("getSourceCost"));
         assertNull(SemanticRecipeAdapter.requirement("getMinimumTier"));
+    }
+
+    @Test
+    void unavailableOptionalSignaturesAreSkippedInsteadOfCrashingTheDump() {
+        assertTrue(SemanticRecipeAdapter.<Method>safeMembers(() -> {
+            throw new NoClassDefFoundError("client-only optional recipe display type");
+        }).isEmpty());
+        assertFalse(SemanticRecipeAdapter.publicMethods(String.class).isEmpty());
+        assertEquals("tconstruct:rock#stone", SemanticRecipeAdapter.materialVariantId("MaterialVariant{tconstruct:rock#stone}"));
+    }
+
+    @Test
+    void semanticAdaptersMayAddTypedRequirementsBeyondTheCoreMachineFields() {
+        JsonObject requirements = JsonParser.parseString("{\"energy\":null}").getAsJsonObject();
+        RecipeGraphExporter.mergeRequirement(requirements, "max_tool_size", JsonParser.parseString("4"));
+        assertEquals(4, requirements.get("max_tool_size").getAsInt());
+        RecipeGraphExporter.mergeRequirement(requirements, "max_tool_size", JsonParser.parseString("9"));
+        assertEquals(4, requirements.get("max_tool_size").getAsInt());
     }
 }

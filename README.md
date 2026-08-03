@@ -20,6 +20,11 @@ as authoritative. Worldgen registry data proves configured live state, not
 placement frequency or occurrence in a generated world; loaded loot tables
 likewise do not prove that their runtime context is reachable.
 
+Optional recipe adapters only emit edges backed by live accessors or pinned
+serializer state. In addition to item and fluid edges, the graph can therefore
+name block transformations, TConstruct materials/modifiers/modifier slots, and
+enchantments without pretending those state transitions are ordinary items.
+
 The command is intentionally the only trigger. The mod performs no work during
 startup, reload, or player synchronization.
 

@@ -3,9 +3,13 @@ package com.bettercontent.recipegraph;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.level.block.Block;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.registries.ForgeRegistries;
 
@@ -21,6 +25,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Supplier;
 
 /** Normalizes common public recipe display APIs without linking optional mods. */
 final class SemanticRecipeAdapter {
@@ -30,7 +35,7 @@ final class SemanticRecipeAdapter {
 
     static Result inspect(Recipe<?> recipe) {
         Collector collector = new Collector();
-        List<Method> methods = new ArrayList<>(List.of(recipe.getClass().getMethods()));
+        List<Method> methods = publicMethods(recipe.getClass());
         methods.sort(Comparator.comparing(Method::toGenericString));
         for (Method method : methods) {
             if (method.getParameterCount() != 0 || Modifier.isStatic(method.getModifiers()) || method.isBridge()) continue;
@@ -49,13 +54,41 @@ final class SemanticRecipeAdapter {
             }
         }
         collector.publicFields(recipe);
+        collector.knownRecipeSemantics(recipe);
         return collector.result();
+    }
+
+    /**
+     * Optional recipe classes can expose client-only types in otherwise public
+     * method signatures. The JVM resolves those signatures while enumerating
+     * methods, so reflection itself can throw a linkage error on a dedicated
+     * server. Such a signature is unavailable evidence, not a reason to abort
+     * the complete live dump.
+     */
+    static List<Method> publicMethods(Class<?> type) {
+        return safeMembers(type::getMethods);
+    }
+
+    static <T> List<T> safeMembers(Supplier<T[]> source) {
+        try {
+            return new ArrayList<>(List.of(source.get()));
+        } catch (LinkageError | SecurityException ignored) {
+            return new ArrayList<>();
+        }
+    }
+
+    static String materialVariantId(String display) {
+        String prefix = "MaterialVariant{";
+        if (display.startsWith(prefix) && display.endsWith("}")) {
+            return display.substring(prefix.length(), display.length() - 1);
+        }
+        return display;
     }
 
     static Direction direction(String name) {
         String value = name.toLowerCase(Locale.ROOT);
-        if (value.contains("output") || value.contains("result") || value.contains("byproduct")) return Direction.OUTPUT;
-        if (value.contains("input") || value.contains("ingredient") || value.contains("reagent")) return Direction.INPUT;
+        if (value.contains("output") || value.contains("result") || value.contains("byproduct") || value.contains("fluidout")) return Direction.OUTPUT;
+        if (value.contains("input") || value.contains("ingredient") || value.contains("reagent") || value.contains("fluidin")) return Direction.INPUT;
         if (value.contains("catalyst") || value.contains("tool")) return Direction.CATALYST;
         return Direction.UNKNOWN;
     }
@@ -65,7 +98,7 @@ final class SemanticRecipeAdapter {
         if (value.contains("temperature") || value.equals("getheat") || value.equals("heat")) return "heat";
         if (value.contains("pressure")) return "pressure";
         if (value.contains("time") || value.contains("ticks") || value.contains("duration")) return "time";
-        if (value.contains("energy") || value.contains("syphon") || value.contains("mana")) return "energy";
+        if (value.contains("energy") || value.contains("syphon") || value.contains("mana") || value.contains("sourcecost")) return "energy";
         return null;
     }
 
@@ -111,7 +144,7 @@ final class SemanticRecipeAdapter {
         }
 
         void publicFields(Object root) {
-            List<Field> fields = new ArrayList<>(List.of(root.getClass().getFields()));
+            List<Field> fields = publicFields(root.getClass());
             fields.sort(Comparator.comparing(Field::toGenericString));
             for (Field field : fields) {
                 if (Modifier.isStatic(field.getModifiers())) continue;
@@ -131,8 +164,103 @@ final class SemanticRecipeAdapter {
             }
         }
 
+        void knownRecipeSemantics(Recipe<?> recipe) {
+            String className = recipe.getClass().getName();
+            if (className.equals("slimeknights.tconstruct.library.recipe.material.MaterialRecipe")) {
+                collectAccessor(recipe, "getMaterial", Direction.OUTPUT);
+            } else if (className.equals("slimeknights.tconstruct.library.recipe.modifiers.ModifierSalvage")) {
+                collectDeclaredField(recipe, "toolIngredient", Direction.INPUT);
+                collectAccessor(recipe, "getModifier", Direction.INPUT);
+                collectModifierSlots(readDeclaredField(recipe, "slots"), "slots");
+                collectNumberAccessor(recipe, "getMaxToolSize", "max_tool_size");
+                collectIntRange(readDeclaredField(recipe, "level"), "modifier_level");
+            } else if (className.equals("com.hollingsworth.arsnouveau.api.enchanting_apparatus.EnchantmentRecipe")) {
+                collectField(recipe, "pedestalItems", Direction.INPUT);
+                collectField(recipe, "reagent", Direction.INPUT);
+                collectField(recipe, "enchantment", Direction.OUTPUT);
+            }
+        }
+
+        private void collectAccessor(Object root, String name, Direction direction) {
+            try {
+                Method method = root.getClass().getMethod(name);
+                collect(method.invoke(root), direction, name + "()", 0);
+            } catch (Throwable ignored) {
+                // The exact pinned accessor is optional evidence.
+            }
+        }
+
+        private void collectField(Object root, String name, Direction direction) {
+            try {
+                Field field = root.getClass().getField(name);
+                collect(field.get(root), direction, name, 0);
+            } catch (Throwable ignored) {
+                // The exact pinned public field is optional evidence.
+            }
+        }
+
+        private void collectDeclaredField(Object root, String name, Direction direction) {
+            Object value = readDeclaredField(root, name);
+            if (value != null) collect(value, direction, name, 0);
+        }
+
+        private Object readDeclaredField(Object root, String name) {
+            for (Class<?> cursor = root.getClass(); cursor != null && cursor != Object.class; cursor = cursor.getSuperclass()) {
+                try {
+                    Field field = cursor.getDeclaredField(name);
+                    if (field.trySetAccessible()) return field.get(root);
+                } catch (Throwable ignored) {
+                    // Try the next superclass; absence is not evidence.
+                }
+            }
+            return null;
+        }
+
+        private void collectNumberAccessor(Object root, String accessor, String requirement) {
+            try {
+                Object value = root.getClass().getMethod(accessor).invoke(root);
+                if (value instanceof Number number) requirement(requirement, number, accessor + "()");
+            } catch (Throwable ignored) {
+                // A missing optional accessor is not evidence.
+            }
+        }
+
+        private void collectIntRange(Object range, String prefix) {
+            if (range == null) return;
+            collectNumberAccessor(range, "min", prefix + "_min");
+            collectNumberAccessor(range, "max", prefix + "_max");
+        }
+
+        private void collectModifierSlots(Object slots, String path) {
+            if (slots == null) return;
+            try {
+                Object type = slots.getClass().getMethod("type").invoke(slots);
+                Object countValue = slots.getClass().getMethod("count").invoke(slots);
+                Object name = type.getClass().getMethod("getName").invoke(type);
+                if (name instanceof String id && countValue instanceof Number count) {
+                    resource("modifier_slot", "tconstruct:" + id, count.intValue(), Direction.OUTPUT, path);
+                }
+            } catch (Throwable ignored) {
+                // A missing optional slot API is not evidence.
+            }
+        }
+
+        private static List<Field> publicFields(Class<?> type) {
+            return safeMembers(type::getFields);
+        }
+
         void collect(Object value, Direction direction, String path, int depth) {
             if (value == null || depth > MAX_DEPTH) return;
+            String className = value.getClass().getName();
+            if (className.equals("slimeknights.tconstruct.library.materials.definition.MaterialVariant")) {
+                resource("material", materialVariantId(value.toString()), direction, path);
+                return;
+            }
+            if (className.equals("slimeknights.tconstruct.library.modifiers.ModifierEntry")
+                    || className.equals("slimeknights.tconstruct.library.modifiers.util.LazyModifier")) {
+                collectIdAccessor(value, "modifier", direction, path);
+                return;
+            }
             if (value instanceof Ingredient ingredient) {
                 ingredient(ingredient, direction, path);
                 return;
@@ -143,6 +271,18 @@ final class SemanticRecipeAdapter {
             }
             if (value instanceof FluidStack stack) {
                 fluid(stack, direction, path);
+                return;
+            }
+            if (value instanceof Block block) {
+                resource("block", BuiltInRegistries.BLOCK.getKey(block), direction, path);
+                return;
+            }
+            if (value instanceof Enchantment enchantment) {
+                resource("enchantment", BuiltInRegistries.ENCHANTMENT.getKey(enchantment), direction, path);
+                return;
+            }
+            if (value instanceof ResourceLocation id) {
+                resource(resourceKind(value.getClass()), id, direction, path);
                 return;
             }
             if (value instanceof Collection<?> collection) {
@@ -224,6 +364,38 @@ final class SemanticRecipeAdapter {
             evidence("edge", path);
         }
 
+        private void resource(String kind, ResourceLocation id, Direction direction, String path) {
+            if (id != null) resource(kind, id.toString(), direction, path);
+        }
+
+        private void resource(String kind, String id, Direction direction, String path) {
+            resource(kind, id, 1, direction, path);
+        }
+
+        private void resource(String kind, String id, int count, Direction direction, String path) {
+            if (id == null || id.isBlank() || direction == Direction.UNKNOWN) return;
+            JsonObject edge = edge(kind, id, count, path);
+            addEdge(direction, edge);
+            if (direction == Direction.OUTPUT) addOutputGroup(edge, path);
+            evidence("edge", path);
+        }
+
+        private void collectIdAccessor(Object value, String kind, Direction direction, String path) {
+            try {
+                Object id = value.getClass().getMethod("getId").invoke(value);
+                if (id instanceof ResourceLocation resourceId) resource(kind, resourceId, direction, path + ".getId()");
+            } catch (Throwable ignored) {
+                // A missing optional accessor is not evidence.
+            }
+        }
+
+        private static String resourceKind(Class<?> type) {
+            String name = type.getName().toLowerCase(Locale.ROOT);
+            if (name.contains("material")) return "material";
+            if (name.contains("modifier")) return "modifier";
+            return "resource";
+        }
+
         private void fluid(FluidStack stack, Direction direction, String path) {
             if (stack.isEmpty() || direction == Direction.UNKNOWN || direction == Direction.CATALYST) return;
             String id = String.valueOf(ForgeRegistries.FLUIDS.getKey(stack.getFluid()));
@@ -241,6 +413,16 @@ final class SemanticRecipeAdapter {
                 case UNKNOWN -> null;
             };
             if (target != null) addUnique(target, edge);
+        }
+
+        private void addOutputGroup(JsonObject edge, String path) {
+            JsonObject group = new JsonObject();
+            group.addProperty("slot", outputGroups.size());
+            group.addProperty("semantic_path", path);
+            JsonArray alternatives = new JsonArray();
+            alternatives.add(edge.deepCopy());
+            group.add("alternatives", alternatives);
+            outputGroups.add(group);
         }
 
         private void addUnique(JsonArray target, JsonObject edge) {
@@ -280,7 +462,7 @@ final class SemanticRecipeAdapter {
         private static List<Field> allFields(Class<?> type) {
             List<Field> fields = new ArrayList<>();
             for (Class<?> cursor = type; cursor != null && cursor != Object.class; cursor = cursor.getSuperclass()) {
-                fields.addAll(List.of(cursor.getDeclaredFields()));
+                fields.addAll(safeMembers(cursor::getDeclaredFields));
             }
             fields.sort(Comparator.comparing(Field::toGenericString));
             return fields;

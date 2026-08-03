@@ -330,7 +330,7 @@ public final class RecipeGraphExporter {
         append(fluidsIn, semantics.fluidsIn());
         append(fluidsOut, semantics.fluidsOut());
         semantics.requirements().entrySet().forEach(entry -> {
-            if (requirements.get(entry.getKey()).isJsonNull()) requirements.add(entry.getKey(), entry.getValue());
+            mergeRequirement(requirements, entry.getKey(), entry.getValue());
         });
         if (semantics.hasEdges()) {
             adapter = adapter == null ? "public_recipe_semantics_v1" : adapter + "+public_recipe_semantics_v1";
@@ -387,6 +387,11 @@ public final class RecipeGraphExporter {
 
     private static void append(JsonArray target, JsonArray source) {
         source.forEach(target::add);
+    }
+
+    static void mergeRequirement(JsonObject requirements, String key, JsonElement value) {
+        JsonElement existing = requirements.get(key);
+        if (existing == null || existing.isJsonNull()) requirements.add(key, value);
     }
 
     private static boolean isPneumaticPressureChamber(Recipe<?> recipe, String type) {

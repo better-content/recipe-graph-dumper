@@ -130,11 +130,15 @@ final class RecipeGraphExporterTest {
     }
 
     @Test
-    void clientSynchronizationTrackersAreNotPromotedToGameplaySemantics() {
+    void clientSynchronizationTrackersRemainDistinctFromGameplaySemantics() {
         assertEquals("non_gameplay_client_recipe_metadata", SemanticRecipeAdapter.operationKind(
                 "com.almostreliable.unified.recipe.ClientRecipeTracker"));
-        assertNull(SemanticRecipeAdapter.operationKind(
+        assertEquals("tool_part_replacement", SemanticRecipeAdapter.operationKind(
                 "slimeknights.tconstruct.tables.recipe.TinkerStationPartSwapping"));
+        assertEquals("gas_reaction", SemanticRecipeAdapter.operationKind(
+                "org.valkyrienskies.clockwork.content.logistics.gas.crafter.GasCraftingRecipe"));
+        assertEquals("tool_modifier_set_mutation", SemanticRecipeAdapter.operationKind(
+                "slimeknights.tconstruct.library.recipe.worktable.ModifierSetWorktableRecipe"));
     }
 
     @Test

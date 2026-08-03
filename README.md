@@ -35,7 +35,10 @@ exclusions carrying their exact linked recipe flags, never fabricated crafting
 edges. Dynamic special crafting is represented by typed runtime selectors and
 copy/mutation effects; placement policies, meteor world effects, smeltery fuel
 profiles, and modifier application/removal likewise remain distinct from
-ordinary static item transforms.
+ordinary static item transforms. Clockwork gas crafting retains exact gas-mass
+maps, reaction requirements, and energy, while TConstruct part swapping and
+modifier-set worktable recipes retain their live tool predicates and runtime
+mutation semantics.
 
 The command is intentionally the only trigger. The mod performs no work during
 startup, reload, or player synchronization.

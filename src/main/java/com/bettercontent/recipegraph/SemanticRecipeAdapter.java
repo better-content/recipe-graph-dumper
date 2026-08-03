@@ -125,6 +125,9 @@ final class SemanticRecipeAdapter {
             case "com.stal111.forbidden_arcanus.common.recipe.ApplyModifierRecipe" -> "item_modifier_application";
             case "com.hollingsworth.arsnouveau.api.enchanting_apparatus.ArmorUpgradeRecipe" -> "armor_tier_upgrade";
             case "com.stal111.forbidden_arcanus.common.recipe.IncreaseEdelwoodBucketFullnessRecipe" -> "container_fullness_mutation";
+            case "org.valkyrienskies.clockwork.content.logistics.gas.crafter.GasCraftingRecipe" -> "gas_reaction";
+            case "slimeknights.tconstruct.tables.recipe.TinkerStationPartSwapping" -> "tool_part_replacement";
+            case "slimeknights.tconstruct.library.recipe.worktable.ModifierSetWorktableRecipe" -> "tool_modifier_set_mutation";
             default -> null;
         };
     }
@@ -311,6 +314,12 @@ final class SemanticRecipeAdapter {
                 arsArmorUpgrade(recipe);
             } else if (className.equals("com.stal111.forbidden_arcanus.common.recipe.IncreaseEdelwoodBucketFullnessRecipe")) {
                 forbiddenBucketFullness();
+            } else if (className.equals("org.valkyrienskies.clockwork.content.logistics.gas.crafter.GasCraftingRecipe")) {
+                clockworkGasCrafting(recipe);
+            } else if (className.equals("slimeknights.tconstruct.tables.recipe.TinkerStationPartSwapping")) {
+                tconstructPartSwapping(recipe);
+            } else if (className.equals("slimeknights.tconstruct.library.recipe.worktable.ModifierSetWorktableRecipe")) {
+                tconstructModifierSet(recipe);
             } else if (className.equals("slimeknights.tconstruct.library.recipe.material.MaterialRecipe")) {
                 collectAccessor(recipe, "getMaterial", Direction.OUTPUT);
             } else if (className.equals("slimeknights.tconstruct.library.recipe.modifiers.ModifierSalvage")) {
@@ -882,6 +891,91 @@ final class SemanticRecipeAdapter {
             resource("runtime_selector", "compatible_filled_bucket", Direction.INPUT, "isValidIncreasementItem()");
             JsonObject effect = effect("increase_edelwood_bucket_fullness_from_consumed_container", "assemble()");
             effect.addProperty("output_source", "mutable_edelwood_bucket_input");
+        }
+
+        private void clockworkGasCrafting(Object recipe) {
+            Object gasRecipe = invokeNoArg(recipe, "getGasRecipe");
+            JsonObject inputGasses = gasMap(invokeNoArg(gasRecipe, "getGasses"));
+            JsonObject outputGasses = gasMap(invokeNoArg(gasRecipe, "getResult"));
+            JsonObject reactionRequirements = gasRequirements(invokeNoArg(gasRecipe, "getRequirements"));
+            Object energy = invokeNoArg(gasRecipe, "getEnergy");
+            if (gasRecipe == null || inputGasses == null || outputGasses == null
+                    || reactionRequirements == null || !(energy instanceof Number)) {
+                incomplete("getGasRecipe() accessors");
+            }
+            JsonObject effect = effect("apply_kelvin_gas_reaction", "getGasRecipe()");
+            if (inputGasses != null) effect.add("gas_inputs_kg", inputGasses);
+            if (outputGasses != null) effect.add("gas_outputs_kg", outputGasses);
+            if (reactionRequirements != null) effect.add("reaction_requirements", reactionRequirements);
+            addNumber(effect, "energy", energy);
+            requirement("consumer_machine", "vs_clockwork:gas_crafter", "GasCraftingRecipe");
+        }
+
+        private static JsonObject gasMap(Object value) {
+            if (!(value instanceof Map<?, ?> map)) return null;
+            JsonObject result = new JsonObject();
+            map.entrySet().stream().sorted(Comparator.comparing(entry -> gasResourceId(entry.getKey())))
+                    .forEach(entry -> {
+                        String id = gasResourceId(entry.getKey());
+                        if (!id.isBlank() && entry.getValue() instanceof Number amount) result.addProperty(id, amount);
+                    });
+            return result.size() == map.size() ? result : null;
+        }
+
+        private static JsonObject gasRequirements(Object value) {
+            if (!(value instanceof Map<?, ?> map)) return null;
+            JsonObject result = new JsonObject();
+            map.entrySet().stream().sorted(Comparator.comparing(entry -> gasResourceId(entry.getKey())))
+                    .forEach(entry -> {
+                        String id = gasResourceId(entry.getKey());
+                        if (!id.isBlank() && entry.getValue() instanceof JsonElement json) result.add(id, json.deepCopy());
+                    });
+            return result.size() == map.size() ? result : null;
+        }
+
+        private static String gasResourceId(Object value) {
+            Object id = invokeNoArg(value, "getResourceLocation");
+            return id instanceof ResourceLocation resource ? resource.toString() : "";
+        }
+
+        private void tconstructPartSwapping(Object recipe) {
+            Object tools = readDeclaredField(recipe, "tools");
+            Object maximum = readDeclaredField(recipe, "maxStackSize");
+            if (tools instanceof Ingredient ingredient) collect(ingredient, Direction.INPUT, "tools", 0);
+            else incomplete("tools");
+            resource("runtime_selector", "compatible_tconstruct_tool_part", Direction.INPUT, "matches()");
+            if (maximum instanceof Number number) requirement("base_maximum_parts_per_operation", number, "maxStackSize");
+            else incomplete("maxStackSize");
+            requirement("maximum_replacements", "tool_material_slot_count", "getValidatedResult()");
+            JsonObject effect = effect("replace_matching_tinker_tool_material_parts", "getValidatedResult()");
+            effect.addProperty("part_slot_source", "runtime_tool_part_item_type");
+            effect.addProperty("material_source", "runtime_tool_part_material");
+            effect.addProperty("output_source", "mutable_tinker_tool_input");
+        }
+
+        private void tconstructModifierSet(Object recipe) {
+            Object tools = readDeclaredField(recipe, "toolRequirement");
+            if (tools instanceof Ingredient ingredient) collect(ingredient, Direction.INPUT, "toolRequirement", 0);
+            else incomplete("toolRequirement");
+            collectSizedIngredients(readDeclaredField(recipe, "inputs"), "inputs");
+            Object dataKey = readDeclaredField(recipe, "dataKey");
+            Object predicate = readDeclaredField(recipe, "modifierPredicate");
+            Object addToSet = readDeclaredField(recipe, "addToSet");
+            Object allowTraits = readDeclaredField(recipe, "allowTraits");
+            JsonElement predicateJson = serializeOptional(predicate);
+            if (!(dataKey instanceof ResourceLocation) || predicateJson == null
+                    || !(addToSet instanceof Boolean) || !(allowTraits instanceof Boolean)) {
+                incomplete("dataKey+modifierPredicate+addToSet+allowTraits");
+            }
+            resource("runtime_selector", "matching_tinker_modifier", Direction.INPUT, "getModifierOptions()");
+            JsonObject effect = effect(Boolean.TRUE.equals(addToSet)
+                    ? "add_selected_modifier_to_tool_data_set" : "remove_selected_modifier_from_tool_data_set",
+                    "getModifierOptions()+getResult()");
+            if (dataKey instanceof ResourceLocation id) effect.addProperty("tool_data_key", id.toString());
+            if (predicateJson != null) effect.add("modifier_predicate", predicateJson);
+            if (allowTraits instanceof Boolean value) effect.addProperty("allows_trait_modifiers", value);
+            effect.addProperty("selection_source", "runtime_modifier_choice");
+            effect.addProperty("output_source", "mutable_tinker_tool_input");
         }
 
         private void collectSizedIngredients(Object value, String path) {

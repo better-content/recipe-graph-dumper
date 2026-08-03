@@ -5,12 +5,17 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.registries.ForgeRegistries;
 
@@ -95,6 +100,14 @@ final class SemanticRecipeAdapter {
             case "slimeknights.tconstruct.tables.recipe.PartBuilderToolRecycle" -> "conditional_tool_part_recycling";
             case "slimeknights.tconstruct.tables.recipe.TinkerStationDamagingRecipe" -> "tool_state_mutation";
             case "appeng.recipes.mattercannon.MatterCannonAmmo" -> "matter_cannon_ammo_metadata";
+            case "com.almostreliable.unified.recipe.ClientRecipeTracker" -> "non_gameplay_client_recipe_metadata";
+            case "com.sammy.malum.common.recipe.SpiritRepairRecipe" -> "spirit_item_repair";
+            case "me.desht.pneumaticcraft.common.recipes.other.HeatPropertiesRecipeImpl" -> "block_heat_property_metadata";
+            case "me.desht.pneumaticcraft.common.recipes.other.FuelQualityRecipeImpl" -> "fluid_fuel_property_metadata";
+            case "com.hollingsworth.arsnouveau.api.recipe.ScryRitualRecipe" -> "ritual_block_highlight";
+            case "wayoftime.bloodmagic.recipe.RecipeLivingDowngrade" -> "living_armor_downgrade_mutation";
+            case "com.Polarice3.Goety.common.crafting.BrewingRecipe" -> "entity_brewing_effect";
+            case "com.Polarice3.Goety.common.crafting.SoulAbsorberRecipes" -> "soul_absorption";
             default -> null;
         };
     }
@@ -222,6 +235,22 @@ final class SemanticRecipeAdapter {
                 tconstructToolDamage(recipe);
             } else if (className.equals("appeng.recipes.mattercannon.MatterCannonAmmo")) {
                 matterCannonAmmo(recipe);
+            } else if (className.equals("com.almostreliable.unified.recipe.ClientRecipeTracker")) {
+                clientRecipeTracker(recipe);
+            } else if (className.equals("com.sammy.malum.common.recipe.SpiritRepairRecipe")) {
+                malumSpiritRepair(recipe);
+            } else if (className.equals("me.desht.pneumaticcraft.common.recipes.other.HeatPropertiesRecipeImpl")) {
+                pneumaticHeatProperties(recipe);
+            } else if (className.equals("me.desht.pneumaticcraft.common.recipes.other.FuelQualityRecipeImpl")) {
+                pneumaticFuelQuality(recipe);
+            } else if (className.equals("com.hollingsworth.arsnouveau.api.recipe.ScryRitualRecipe")) {
+                arsScryRitual(recipe);
+            } else if (className.equals("wayoftime.bloodmagic.recipe.RecipeLivingDowngrade")) {
+                bloodMagicLivingDowngrade(recipe);
+            } else if (className.equals("com.Polarice3.Goety.common.crafting.BrewingRecipe")) {
+                goetyBrewing(recipe);
+            } else if (className.equals("com.Polarice3.Goety.common.crafting.SoulAbsorberRecipes")) {
+                goetySoulAbsorber(recipe);
             } else if (className.equals("slimeknights.tconstruct.library.recipe.material.MaterialRecipe")) {
                 collectAccessor(recipe, "getMaterial", Direction.OUTPUT);
             } else if (className.equals("slimeknights.tconstruct.library.recipe.modifiers.ModifierSalvage")) {
@@ -395,6 +424,228 @@ final class SemanticRecipeAdapter {
             requirement("consumer_machine", "ae2:matter_cannon", "MatterCannonAmmo.TYPE_ID");
             JsonObject effect = effect("define_projectile_damage_profile", "getWeight()");
             addNumber(effect, "weight", weight);
+        }
+
+        private void clientRecipeTracker(Object recipe) {
+            Object namespaceValue = readDeclaredField(recipe, "namespace");
+            Object recipesValue = readDeclaredField(recipe, "recipes");
+            if (!(namespaceValue instanceof String namespace) || !(recipesValue instanceof Map<?, ?> links)) {
+                incomplete("namespace+recipes");
+                return;
+            }
+            requirement("gameplay_recipe", false, "ClientRecipeTracker.matches()=false");
+            requirement("scope", "client_recipe_synchronization", "ClientRecipeTracker");
+            JsonObject effect = effect("exclude_non_gameplay_recipe_tracker", "namespace+recipes");
+            effect.addProperty("namespace", namespace);
+            JsonArray exactLinks = new JsonArray();
+            links.values().stream().sorted(Comparator.comparing(link -> String.valueOf(invokeNoArg(link, "id"))))
+                    .forEach(link -> {
+                        Object id = invokeNoArg(link, "id");
+                        Object unified = invokeNoArg(link, "isUnified");
+                        Object duplicate = invokeNoArg(link, "isDuplicate");
+                        if (!(id instanceof ResourceLocation) || !(unified instanceof Boolean) || !(duplicate instanceof Boolean)) {
+                            incomplete("recipes.ClientRecipeLink");
+                            return;
+                        }
+                        JsonObject row = new JsonObject();
+                        row.addProperty("recipe_id", id.toString());
+                        row.addProperty("unified", (Boolean) unified);
+                        row.addProperty("duplicate", (Boolean) duplicate);
+                        exactLinks.add(row);
+                    });
+            effect.add("linked_recipes", exactLinks);
+        }
+
+        private void malumSpiritRepair(Object recipe) {
+            Object eligibleValue = readDeclaredField(recipe, "inputs");
+            JsonArray eligibleIds = new JsonArray();
+            if (eligibleValue instanceof Collection<?> eligible) {
+                addItemAlternatives(eligible, "inputs", eligibleIds);
+            }
+            if (eligibleIds.isEmpty()) incomplete("inputs");
+
+            Object repairMaterial = readDeclaredField(recipe, "repairMaterial");
+            Object repairIngredient = readDeclaredField(repairMaterial, "ingredient");
+            Object repairCount = readDeclaredField(repairMaterial, "count");
+            if (repairIngredient instanceof Ingredient ingredient && repairCount instanceof Number count) {
+                ingredient(ingredient, Direction.INPUT, "repairMaterial.ingredient", count.intValue());
+            } else incomplete("repairMaterial.ingredient+count");
+
+            Object spiritValue = readDeclaredField(recipe, "spirits");
+            if (spiritValue instanceof Collection<?> spirits && !spirits.isEmpty()) {
+                int index = 0;
+                for (Object spirit : spirits) {
+                    Object stack = invokeNoArg(spirit, "getStack");
+                    if (stack instanceof ItemStack itemStack && !itemStack.isEmpty()) {
+                        item(itemStack, Direction.INPUT, "spirits[" + index + "].getStack()");
+                    } else incomplete("spirits[" + index + "].getStack()");
+                    index++;
+                }
+            } else incomplete("spirits");
+
+            Object durability = readDeclaredField(recipe, "durabilityPercentage");
+            if (!(durability instanceof Number)) incomplete("durabilityPercentage");
+            requirement("mutable_item_input", true, "SpiritRepairRecipe.getRepairRecipeOutput()");
+            JsonObject effect = effect("repair_item_durability_fraction", "durabilityPercentage");
+            addNumber(effect, "durability_fraction", durability);
+            effect.add("eligible_item_ids", eligibleIds);
+            effect.addProperty("output_source", "mutable_item_input");
+        }
+
+        private void pneumaticHeatProperties(Object recipe) {
+            Object blockValue = invokeNoArg(recipe, "getBlock");
+            Object capacity = invokeNoArg(recipe, "getHeatCapacity");
+            Object temperature = invokeNoArg(recipe, "getTemperature");
+            Object resistance = invokeNoArg(recipe, "getThermalResistance");
+            if (!(blockValue instanceof Block block) || !(capacity instanceof Number)
+                    || !(temperature instanceof Number) || !(resistance instanceof Number)) {
+                incomplete("getBlock()+getHeatCapacity()+getTemperature()+getThermalResistance()");
+                return;
+            }
+            resource("block", BuiltInRegistries.BLOCK.getKey(block), Direction.INPUT, "getBlock()");
+            JsonObject effect = effect("define_block_heat_properties", "HeatPropertiesRecipe display API");
+            effect.addProperty("block_id", String.valueOf(BuiltInRegistries.BLOCK.getKey(block)));
+            addNumber(effect, "heat_capacity", capacity);
+            addNumber(effect, "temperature", temperature);
+            addNumber(effect, "thermal_resistance", resistance);
+            addBlockState(effect, "input_state", invokeNoArg(recipe, "getBlockState"));
+            addBlockState(effect, "hot_transform", invokeNoArg(recipe, "getTransformHot"));
+            addBlockState(effect, "hot_flowing_transform", invokeNoArg(recipe, "getTransformHotFlowing"));
+            addBlockState(effect, "cold_transform", invokeNoArg(recipe, "getTransformCold"));
+            addBlockState(effect, "cold_flowing_transform", invokeNoArg(recipe, "getTransformColdFlowing"));
+            Object predicateValue = invokeNoArg(recipe, "getBlockStatePredicates");
+            if (predicateValue instanceof Map<?, ?> predicates) {
+                JsonObject exactPredicates = new JsonObject();
+                predicates.entrySet().stream().sorted(Comparator.comparing(entry -> String.valueOf(entry.getKey())))
+                        .forEach(entry -> exactPredicates.addProperty(String.valueOf(entry.getKey()), String.valueOf(entry.getValue())));
+                effect.add("state_predicates", exactPredicates);
+            } else incomplete("getBlockStatePredicates()");
+            Object description = invokeNoArg(recipe, "getDescriptionKey");
+            if (description instanceof String value && !value.isBlank()) effect.addProperty("description_key", value);
+        }
+
+        private void pneumaticFuelQuality(Object recipe) {
+            Object fuel = invokeNoArg(recipe, "getFuel");
+            Object fluidsValue = invokeNoArg(fuel, "getFluidStacks");
+            int fluids = 0;
+            if (fluidsValue instanceof Collection<?> stacks) {
+                for (Object value : stacks) {
+                    if (value instanceof FluidStack stack && !stack.isEmpty()) {
+                        fluid(stack, Direction.INPUT, "getFuel().getFluidStacks()");
+                        fluids++;
+                    }
+                }
+            }
+            Object air = invokeNoArg(recipe, "getAirPerBucket");
+            Object burnRate = invokeNoArg(recipe, "getBurnRate");
+            if (fluids == 0 || !(air instanceof Number) || !(burnRate instanceof Number)) {
+                incomplete("getFuel()+getAirPerBucket()+getBurnRate()");
+            }
+            JsonObject effect = effect("define_fluid_fuel_quality", "FuelQualityRecipe display API");
+            addNumber(effect, "air_per_bucket", air);
+            addNumber(effect, "burn_rate", burnRate);
+            requirement("consumer_machine", "pneumaticcraft:liquid_compressor", "FuelQualityRecipe.TYPE");
+        }
+
+        private void arsScryRitual(Object recipe) {
+            Object augment = invokeNoArg(recipe, "augment");
+            Object highlight = invokeNoArg(recipe, "highlight");
+            ResourceLocation augmentId = tagLocation(augment);
+            ResourceLocation highlightId = tagLocation(highlight);
+            if (augmentId == null || highlightId == null) incomplete("augment()+highlight()");
+            if (augmentId != null) resource("item_tag", augmentId, Direction.INPUT, "augment()");
+            JsonObject effect = effect("highlight_blocks_matching_tag", "highlight()");
+            if (highlightId != null) effect.addProperty("block_tag", highlightId.toString());
+            requirement("consumer_ritual", "ars_nouveau:scrying", "ScryRitualRecipe");
+        }
+
+        private void bloodMagicLivingDowngrade(Object recipe) {
+            Object input = invokeNoArg(recipe, "getInput");
+            Object downgrade = invokeNoArg(recipe, "getLivingArmourResource");
+            if (input instanceof Ingredient ingredient) collect(ingredient, Direction.INPUT, "getInput()", 0);
+            else incomplete("getInput()");
+            if (!(downgrade instanceof ResourceLocation)) incomplete("getLivingArmourResource()");
+            requirement("mutable_living_armor_input", true, "RecipeLivingDowngrade");
+            JsonObject effect = effect("remove_living_armor_downgrade", "getLivingArmourResource()");
+            if (downgrade instanceof ResourceLocation id) effect.addProperty("downgrade_id", id.toString());
+            effect.addProperty("output_source", "mutable_living_armor_input");
+        }
+
+        private void goetyBrewing(Object recipe) {
+            Object input = invokeNoArg(recipe, "getInput");
+            if (input instanceof Ingredient ingredient) collect(ingredient, Direction.INPUT, "getInput()", 0);
+            else incomplete("getInput()");
+            Object mobEffect = invokeNoArg(recipe, "getOutput");
+            ResourceLocation effectId = mobEffect instanceof MobEffect effect ? BuiltInRegistries.MOB_EFFECT.getKey(effect) : null;
+            Object entityType = invokeNoArg(recipe, "getEntityType");
+            Object entityTag = invokeNoArg(recipe, "getEntityTypeTag");
+            ResourceLocation entityId = entityType instanceof EntityType<?> type ? BuiltInRegistries.ENTITY_TYPE.getKey(type) : null;
+            ResourceLocation entityTagId = tagLocation(entityTag);
+            Object soulCost = invokeNoArg(recipe, "getSoulCost");
+            Object capacity = invokeNoArg(recipe, "getCapacityExtra");
+            Object duration = invokeNoArg(recipe, "getDuration");
+            if (effectId == null || !(soulCost instanceof Number)
+                    || !(capacity instanceof Number) || !(duration instanceof Number)) incomplete("Goety BrewingRecipe display API");
+            JsonObject effect = effect("apply_mob_effect_to_entity_selector", "BrewingRecipe display API");
+            if (effectId != null) effect.addProperty("mob_effect_id", effectId.toString());
+            if (entityId != null) effect.addProperty("entity_type_id", entityId.toString());
+            if (entityTagId != null) effect.addProperty("entity_type_tag", entityTagId.toString());
+            if (entityId == null && entityTagId == null) effect.addProperty("entity_selector", "unrestricted");
+            addNumber(effect, "duration_ticks", duration);
+            addNumber(effect, "capacity_extra", capacity);
+            if (soulCost instanceof Number number) requirement("soul_cost", number, "getSoulCost()");
+        }
+
+        private void goetySoulAbsorber(Object recipe) {
+            Object ingredientValue = readDeclaredField(recipe, "ingredient");
+            if (ingredientValue instanceof Ingredient ingredient) collect(ingredient, Direction.INPUT, "ingredient", 0);
+            else incomplete("ingredient");
+            Object souls = invokeNoArg(recipe, "getSoulIncrease");
+            Object time = invokeNoArg(recipe, "getCookingTime");
+            if (!(souls instanceof Number) || !(time instanceof Number)) incomplete("getSoulIncrease()+getCookingTime()");
+            JsonObject effect = effect("generate_souls", "getSoulIncrease()");
+            addNumber(effect, "amount", souls);
+            if (time instanceof Number number) requirement("time", number, "getCookingTime()");
+            requirement("consumer_machine", "goety:soul_absorber", "SoulAbsorberRecipes");
+        }
+
+        private void addItemAlternatives(Collection<?> values, String path, JsonArray ids) {
+            JsonObject group = new JsonObject();
+            group.addProperty("slot", inputGroups.size());
+            group.addProperty("semantic_path", path);
+            JsonArray alternatives = new JsonArray();
+            values.stream().filter(Item.class::isInstance).map(Item.class::cast)
+                    .sorted(Comparator.comparing(item -> String.valueOf(BuiltInRegistries.ITEM.getKey(item))))
+                    .forEach(item -> {
+                        ResourceLocation id = BuiltInRegistries.ITEM.getKey(item);
+                        if (id == null) return;
+                        JsonObject edge = edge("item", id.toString(), 1, path);
+                        alternatives.add(edge.deepCopy());
+                        addEdge(Direction.INPUT, edge);
+                        ids.add(id.toString());
+                    });
+            group.add("alternatives", alternatives);
+            if (!alternatives.isEmpty()) inputGroups.add(group);
+        }
+
+        private static ResourceLocation tagLocation(Object value) {
+            return value instanceof TagKey<?> tag ? tag.location() : null;
+        }
+
+        private static void addBlockState(JsonObject target, String key, Object value) {
+            if (!(value instanceof BlockState state)) return;
+            JsonObject row = new JsonObject();
+            row.addProperty("block_id", String.valueOf(BuiltInRegistries.BLOCK.getKey(state.getBlock())));
+            JsonObject properties = new JsonObject();
+            state.getValues().entrySet().stream().sorted(Comparator.comparing(entry -> entry.getKey().getName()))
+                    .forEach(entry -> properties.addProperty(entry.getKey().getName(), propertyValueName(entry.getKey(), entry.getValue())));
+            row.add("properties", properties);
+            target.add(key, row);
+        }
+
+        @SuppressWarnings({"rawtypes", "unchecked"})
+        private static String propertyValueName(Property property, Comparable value) {
+            return property.getName(value);
         }
 
         private void operation(String kind, String path) {
@@ -574,6 +825,10 @@ final class SemanticRecipeAdapter {
             }
             if (value instanceof ItemStack stack) {
                 item(stack, direction, path);
+                return;
+            }
+            if (value instanceof Item item) {
+                resource("item", BuiltInRegistries.ITEM.getKey(item), direction, path);
                 return;
             }
             if (value instanceof FluidStack stack) {

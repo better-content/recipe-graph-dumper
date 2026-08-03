@@ -27,8 +27,12 @@ enchantments without pretending those state transitions are ordinary items.
 Context-dependent rules use an explicit `operation_kind`, typed `effects`, and
 typed `requirements`: Blood Magic flask state changes, TConstruct material-cost
 melting and recycling/tool mutations, and AE2 matter-cannon ammo profiles are
-therefore navigable without fake static outputs. AlmostUnified client recipe
-trackers remain partial because synchronization metadata is not gameplay.
+therefore navigable without fake static outputs. The same schema represents
+Malum spirit repairs, PneumaticCraft heat/fuel properties, Ars scry mappings,
+Blood Magic living-armour mutations, and Goety brewing/soul operations.
+AlmostUnified client recipe trackers are explicit non-gameplay metadata
+exclusions carrying their exact linked recipe flags, never fabricated crafting
+edges.
 
 The command is intentionally the only trigger. The mod performs no work during
 startup, reload, or player synchronization.

@@ -97,11 +97,28 @@ final class RecipeGraphExporterTest {
                 "slimeknights.tconstruct.tables.recipe.TinkerStationDamagingRecipe"));
         assertEquals("matter_cannon_ammo_metadata", SemanticRecipeAdapter.operationKind(
                 "appeng.recipes.mattercannon.MatterCannonAmmo"));
+        assertEquals("non_gameplay_client_recipe_metadata", SemanticRecipeAdapter.operationKind(
+                "com.almostreliable.unified.recipe.ClientRecipeTracker"));
+        assertEquals("spirit_item_repair", SemanticRecipeAdapter.operationKind(
+                "com.sammy.malum.common.recipe.SpiritRepairRecipe"));
+        assertEquals("block_heat_property_metadata", SemanticRecipeAdapter.operationKind(
+                "me.desht.pneumaticcraft.common.recipes.other.HeatPropertiesRecipeImpl"));
+        assertEquals("fluid_fuel_property_metadata", SemanticRecipeAdapter.operationKind(
+                "me.desht.pneumaticcraft.common.recipes.other.FuelQualityRecipeImpl"));
+        assertEquals("ritual_block_highlight", SemanticRecipeAdapter.operationKind(
+                "com.hollingsworth.arsnouveau.api.recipe.ScryRitualRecipe"));
+        assertEquals("living_armor_downgrade_mutation", SemanticRecipeAdapter.operationKind(
+                "wayoftime.bloodmagic.recipe.RecipeLivingDowngrade"));
+        assertEquals("entity_brewing_effect", SemanticRecipeAdapter.operationKind(
+                "com.Polarice3.Goety.common.crafting.BrewingRecipe"));
+        assertEquals("soul_absorption", SemanticRecipeAdapter.operationKind(
+                "com.Polarice3.Goety.common.crafting.SoulAbsorberRecipes"));
     }
 
     @Test
     void clientSynchronizationTrackersAreNotPromotedToGameplaySemantics() {
-        assertNull(SemanticRecipeAdapter.operationKind("com.almostreliable.unified.recipe.ClientRecipeTracker"));
+        assertEquals("non_gameplay_client_recipe_metadata", SemanticRecipeAdapter.operationKind(
+                "com.almostreliable.unified.recipe.ClientRecipeTracker"));
         assertNull(SemanticRecipeAdapter.operationKind(
                 "slimeknights.tconstruct.tables.recipe.TinkerStationPartSwapping"));
     }

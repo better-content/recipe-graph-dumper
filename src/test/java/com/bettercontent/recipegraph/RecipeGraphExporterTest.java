@@ -41,4 +41,16 @@ final class RecipeGraphExporterTest {
         assertFalse(RecipeGraphExporter.isComplete(0, 1, 0));
         assertFalse(RecipeGraphExporter.isComplete(0, 0, 1));
     }
+
+    @Test
+    void semanticAccessorsAreClassifiedWithoutGuessingUnrelatedGetters() {
+        assertEquals(SemanticRecipeAdapter.Direction.INPUT, SemanticRecipeAdapter.direction("getInputFluid"));
+        assertEquals(SemanticRecipeAdapter.Direction.OUTPUT, SemanticRecipeAdapter.direction("getOutputWithByproducts"));
+        assertEquals(SemanticRecipeAdapter.Direction.CATALYST, SemanticRecipeAdapter.direction("getCatalyst"));
+        assertEquals(SemanticRecipeAdapter.Direction.UNKNOWN, SemanticRecipeAdapter.direction("getId"));
+        assertEquals("pressure", SemanticRecipeAdapter.requirement("getRequiredPressure"));
+        assertEquals("heat", SemanticRecipeAdapter.requirement("getTemperature"));
+        assertEquals("time", SemanticRecipeAdapter.requirement("getTicks"));
+        assertNull(SemanticRecipeAdapter.requirement("getMinimumTier"));
+    }
 }

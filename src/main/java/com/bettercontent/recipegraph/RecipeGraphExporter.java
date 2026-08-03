@@ -294,19 +294,14 @@ public final class RecipeGraphExporter {
                     outputGroups.add(group);
                 }
             }
-            if (outputs.isEmpty()) {
-                issues.add("no static primary output");
-                partial = true;
-            }
         } catch (Exception error) {
             issues.add("primary_output: " + describe(error));
             partial = true;
         }
-        row.add("outputs", outputs);
-        row.add("output_groups", outputGroups);
-        row.add("catalysts", new JsonArray());
-        row.add("fluids_in", new JsonArray());
-        row.add("fluids_out", new JsonArray());
+
+        JsonArray catalysts = new JsonArray();
+        JsonArray fluidsIn = new JsonArray();
+        JsonArray fluidsOut = new JsonArray();
 
         JsonObject requirements = new JsonObject();
         requirements.add("energy", null);
@@ -321,6 +316,36 @@ public final class RecipeGraphExporter {
                 partial = true;
             }
         }
+
+        SemanticRecipeAdapter.Result semantics = SemanticRecipeAdapter.inspect(recipe);
+        if (groups.isEmpty() && !semantics.inputGroups().isEmpty()) {
+            append(groups, semantics.inputGroups());
+            append(flatInputs, semantics.inputs());
+        }
+        if (outputs.isEmpty() && !semantics.outputs().isEmpty()) {
+            append(outputs, semantics.outputs());
+            append(outputGroups, semantics.outputGroups());
+        }
+        append(catalysts, semantics.catalysts());
+        append(fluidsIn, semantics.fluidsIn());
+        append(fluidsOut, semantics.fluidsOut());
+        semantics.requirements().entrySet().forEach(entry -> {
+            if (requirements.get(entry.getKey()).isJsonNull()) requirements.add(entry.getKey(), entry.getValue());
+        });
+        if (semantics.hasEdges()) {
+            adapter = adapter == null ? "public_recipe_semantics_v1" : adapter + "+public_recipe_semantics_v1";
+            row.add("normalization_evidence", semantics.evidence());
+        }
+
+        if (outputs.isEmpty() && fluidsOut.isEmpty()) {
+            issues.add("no static primary output");
+            partial = true;
+        }
+        row.add("outputs", outputs);
+        row.add("output_groups", outputGroups);
+        row.add("catalysts", catalysts);
+        row.add("fluids_in", fluidsIn);
+        row.add("fluids_out", fluidsOut);
         row.add("requirements", requirements);
         JsonArray machines = new JsonArray();
         JsonObject machine = new JsonObject();
@@ -348,7 +373,7 @@ public final class RecipeGraphExporter {
         } finally {
             buffer.release();
         }
-        if (groups.isEmpty() && outputs.isEmpty()) {
+        if (groups.isEmpty() && outputs.isEmpty() && fluidsIn.isEmpty() && fluidsOut.isEmpty()) {
             issues.add("no normalized inputs or outputs");
             partial = true;
         }
@@ -358,6 +383,10 @@ public final class RecipeGraphExporter {
         row.addProperty("normalization", payloadError ? "error" : partial ? "partial" : adapter != null ? "adapter" : "standard");
         row.addProperty("parsed", !partial);
         return new RecipeExport(row, type, partial, payloadError);
+    }
+
+    private static void append(JsonArray target, JsonArray source) {
+        source.forEach(target::add);
     }
 
     private static boolean isPneumaticPressureChamber(Recipe<?> recipe, String type) {

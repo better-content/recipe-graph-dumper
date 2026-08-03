@@ -9,6 +9,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.level.block.Block;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.registries.ForgeRegistries;
@@ -23,6 +24,7 @@ import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Supplier;
@@ -85,6 +87,26 @@ final class SemanticRecipeAdapter {
         return display;
     }
 
+    static String operationKind(String className) {
+        if (isBloodMagicPotionStateMutation(className)) return "potion_flask_state_mutation";
+        return switch (className) {
+            case "slimeknights.tconstruct.library.recipe.melting.MaterialMeltingRecipe" -> "material_scaled_melting";
+            case "slimeknights.tconstruct.library.recipe.partbuilder.recycle.PartBuilderRecycle" -> "conditional_part_recycling";
+            case "slimeknights.tconstruct.tables.recipe.PartBuilderToolRecycle" -> "conditional_tool_part_recycling";
+            case "slimeknights.tconstruct.tables.recipe.TinkerStationDamagingRecipe" -> "tool_state_mutation";
+            case "appeng.recipes.mattercannon.MatterCannonAmmo" -> "matter_cannon_ammo_metadata";
+            default -> null;
+        };
+    }
+
+    private static boolean isBloodMagicPotionStateMutation(String className) {
+        return className.equals("wayoftime.bloodmagic.recipe.flask.RecipePotionIncreaseLength")
+                || className.equals("wayoftime.bloodmagic.recipe.flask.RecipePotionIncreasePotency")
+                || className.equals("wayoftime.bloodmagic.recipe.flask.RecipePotionEffect")
+                || className.equals("wayoftime.bloodmagic.recipe.flask.RecipePotionTransform")
+                || className.equals("wayoftime.bloodmagic.recipe.flask.RecipePotionFill");
+    }
+
     static Direction direction(String name) {
         String value = name.toLowerCase(Locale.ROOT);
         if (value.contains("output") || value.contains("result") || value.contains("byproduct") || value.contains("fluidout")) return Direction.OUTPUT;
@@ -112,11 +134,15 @@ final class SemanticRecipeAdapter {
             JsonArray catalysts,
             JsonArray fluidsIn,
             JsonArray fluidsOut,
+            String operationKind,
+            JsonArray effects,
             JsonObject requirements,
-            JsonArray evidence
+            JsonArray evidence,
+            boolean contextualComplete
     ) {
-        boolean hasEdges() {
-            return !inputs.isEmpty() || !outputs.isEmpty() || !fluidsIn.isEmpty() || !fluidsOut.isEmpty() || !catalysts.isEmpty();
+        boolean hasSemantics() {
+            return !inputs.isEmpty() || !outputs.isEmpty() || !fluidsIn.isEmpty() || !fluidsOut.isEmpty()
+                    || !catalysts.isEmpty() || !effects.isEmpty() || operationKind != null;
         }
     }
 
@@ -128,18 +154,34 @@ final class SemanticRecipeAdapter {
         private final JsonArray catalysts = new JsonArray();
         private final JsonArray fluidsIn = new JsonArray();
         private final JsonArray fluidsOut = new JsonArray();
+        private final JsonArray effects = new JsonArray();
         private final JsonObject requirements = new JsonObject();
         private final JsonArray evidence = new JsonArray();
         private final Set<String> seenEdges = new TreeSet<>();
         private final Set<Object> visited = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
+        private String operationKind;
+        private boolean contextualComplete = true;
 
         Result result() {
-            return new Result(inputGroups, inputs, outputGroups, outputs, catalysts, fluidsIn, fluidsOut, requirements, evidence);
+            return new Result(inputGroups, inputs, outputGroups, outputs, catalysts, fluidsIn, fluidsOut,
+                    operationKind, effects, requirements, evidence, contextualComplete);
         }
 
         void requirement(String kind, Number value, String path) {
-            if (requirements.has(kind)) return;
-            requirements.addProperty(kind, value);
+            requirement(kind, new com.google.gson.JsonPrimitive(value), path);
+        }
+
+        void requirement(String kind, String value, String path) {
+            requirement(kind, new com.google.gson.JsonPrimitive(value), path);
+        }
+
+        void requirement(String kind, boolean value, String path) {
+            requirement(kind, new com.google.gson.JsonPrimitive(value), path);
+        }
+
+        void requirement(String kind, JsonElement value, String path) {
+            if (requirements.has(kind) || value == null) return;
+            requirements.add(kind, value);
             evidence(kind, path);
         }
 
@@ -166,7 +208,21 @@ final class SemanticRecipeAdapter {
 
         void knownRecipeSemantics(Recipe<?> recipe) {
             String className = recipe.getClass().getName();
-            if (className.equals("slimeknights.tconstruct.library.recipe.material.MaterialRecipe")) {
+            String knownOperation = operationKind(className);
+            if (knownOperation != null) operation(knownOperation, className);
+            if (isBloodMagicPotionStateMutation(className)) {
+                bloodMagicFlask(recipe, className);
+            } else if (className.equals("slimeknights.tconstruct.library.recipe.melting.MaterialMeltingRecipe")) {
+                tconstructMaterialMelting(recipe);
+            } else if (className.equals("slimeknights.tconstruct.library.recipe.partbuilder.recycle.PartBuilderRecycle")) {
+                tconstructPartRecycle(recipe);
+            } else if (className.equals("slimeknights.tconstruct.tables.recipe.PartBuilderToolRecycle")) {
+                tconstructToolRecycle(recipe);
+            } else if (className.equals("slimeknights.tconstruct.tables.recipe.TinkerStationDamagingRecipe")) {
+                tconstructToolDamage(recipe);
+            } else if (className.equals("appeng.recipes.mattercannon.MatterCannonAmmo")) {
+                matterCannonAmmo(recipe);
+            } else if (className.equals("slimeknights.tconstruct.library.recipe.material.MaterialRecipe")) {
                 collectAccessor(recipe, "getMaterial", Direction.OUTPUT);
             } else if (className.equals("slimeknights.tconstruct.library.recipe.modifiers.ModifierSalvage")) {
                 collectDeclaredField(recipe, "toolIngredient", Direction.INPUT);
@@ -178,6 +234,257 @@ final class SemanticRecipeAdapter {
                 collectField(recipe, "pedestalItems", Direction.INPUT);
                 collectField(recipe, "reagent", Direction.INPUT);
                 collectField(recipe, "enchantment", Direction.OUTPUT);
+            }
+        }
+
+        private void bloodMagicFlask(Object recipe, String className) {
+            collectNumberAccessor(recipe, "getMinimumTier", "machine_tier");
+            if (collectRegistryItemsBySuperclass("wayoftime.bloodmagic.common.item.potion.ItemAlchemyFlask", "eligible_flask_item_class") == 0) {
+                incomplete("eligible_flask_item_class");
+            }
+            if (className.endsWith("RecipePotionIncreaseLength")) {
+                Object target = readDeclaredField(recipe, "outputEffect");
+                Object multiplier = readDeclaredField(recipe, "lengthDurationMod");
+                if (!(target instanceof MobEffect) || !(multiplier instanceof Number)) incomplete("outputEffect+lengthDurationMod");
+                JsonObject effect = effect("set_potion_effect_duration_multiplier", "outputEffect+lengthDurationMod");
+                addMobEffectTarget(effect, target);
+                addNumber(effect, "multiplier", multiplier);
+            } else if (className.endsWith("RecipePotionIncreasePotency")) {
+                Object target = readDeclaredField(recipe, "outputEffect");
+                Object amplifier = readDeclaredField(recipe, "amplifier");
+                Object durationMultiplier = readDeclaredField(recipe, "ampDurationMod");
+                if (!(target instanceof MobEffect) || !(amplifier instanceof Number) || !(durationMultiplier instanceof Number)) {
+                    incomplete("outputEffect+amplifier+ampDurationMod");
+                }
+                JsonObject effect = effect("set_potion_effect_potency", "outputEffect+amplifier+ampDurationMod");
+                addMobEffectTarget(effect, target);
+                addNumber(effect, "amplifier", amplifier);
+                addNumber(effect, "duration_multiplier", durationMultiplier);
+            } else if (className.endsWith("RecipePotionEffect")) {
+                Object target = readDeclaredField(recipe, "outputEffect");
+                Object duration = readDeclaredField(recipe, "baseDuration");
+                if (!(target instanceof MobEffect) || !(duration instanceof Number)) incomplete("outputEffect+baseDuration");
+                JsonObject effect = effect("add_potion_effect", "outputEffect+baseDuration");
+                addMobEffectTarget(effect, target);
+                addNumber(effect, "base_duration_ticks", duration);
+            } else if (className.endsWith("RecipePotionTransform")) {
+                Object inputValue = readDeclaredField(recipe, "inputEffectList");
+                JsonArray required = mobEffectIds(inputValue);
+                if (!(inputValue instanceof Collection<?>) || required.isEmpty()) incomplete("inputEffectList");
+                requirement("required_potion_effects", required, "inputEffectList");
+                if (inputValue instanceof Collection<?> inputEffects) {
+                    for (Object inputEffect : inputEffects) {
+                        JsonObject effect = effect("remove_potion_effect", "inputEffectList");
+                        addMobEffectTarget(effect, inputEffect);
+                    }
+                }
+                Object outputValue = readDeclaredField(recipe, "outputEffectList");
+                if (outputValue instanceof Collection<?> outputEffects) {
+                    for (Object pair : outputEffects) {
+                        Object target = invokeNoArg(pair, "getKey");
+                        Object duration = invokeNoArg(pair, "getValue");
+                        if (!(target instanceof MobEffect) || !(duration instanceof Number)) incomplete("outputEffectList");
+                        JsonObject effect = effect("add_potion_effect", "outputEffectList");
+                        addMobEffectTarget(effect, target);
+                        addNumber(effect, "base_duration_ticks", duration);
+                    }
+                } else incomplete("outputEffectList");
+            } else if (className.endsWith("RecipePotionFill")) {
+                Object maximum = readDeclaredField(recipe, "maxEffects");
+                if (!(maximum instanceof Number)) incomplete("maxEffects");
+                JsonObject effect = effect("truncate_potion_effect_list", "maxEffects");
+                addNumber(effect, "maximum_effects", maximum);
+                requirement("minimum_existing_effects", 1, "canModifyFlask()");
+            }
+        }
+
+        private void tconstructMaterialMelting(Object recipe) {
+            Object material = readDeclaredField(recipe, "input");
+            String materialId = materialVariantId(String.valueOf(material));
+            if (material == null || materialId.isBlank() || materialId.equals("null")) incomplete("input");
+            else resource("material", materialId, Direction.INPUT, "input");
+            if (!collectFluidOutput(readDeclaredField(recipe, "result"), Direction.OUTPUT, "result")) incomplete("result");
+            Object byproducts = readDeclaredField(recipe, "byproducts");
+            if (byproducts instanceof Collection<?> values) {
+                int index = 0;
+                for (Object output : values) {
+                    if (!collectFluidOutput(output, Direction.OUTPUT, "byproducts[" + index + "]")) incomplete("byproducts[" + index + "]");
+                    index++;
+                }
+            } else incomplete("byproducts");
+            Object temperature = readDeclaredField(recipe, "temperature");
+            if (temperature instanceof Number number) requirement("heat", number, "temperature");
+            else incomplete("temperature");
+            requirement("quantity_basis", "tconstruct_part_material_cost", "MaterialCastingLookup.getItemCost()");
+            JsonObject effect = effect("scale_fluid_outputs_by_material_cost", "MaterialCastingLookup.getItemCost()");
+            effect.addProperty("input_material", materialId);
+        }
+
+        private void tconstructPartRecycle(Object recipe) {
+            collectDeclaredField(recipe, "tool", Direction.INPUT);
+            collectDeclaredField(recipe, "pattern", Direction.INPUT);
+            Object resultCount = readDeclaredField(recipe, "resultCount");
+            if (resultCount instanceof Number number) requirement("total_recoverable_units", number, "resultCount");
+            requirement("tool_must_have_no_upgrades", true, "matches()");
+            requirement("quantity_basis", "remaining_durability_fraction", "getAmount()");
+            Object results = readDeclaredField(recipe, "results");
+            if (results instanceof Map<?, ?> map) {
+                map.entrySet().stream().sorted(Comparator.comparing(entry -> String.valueOf(entry.getKey()))).forEach(entry -> {
+                    Object stackValue = invokeNoArg(entry.getValue(), "get");
+                    Object countValue = invokeNoArg(entry.getValue(), "getCount");
+                    if (!(stackValue instanceof ItemStack stack) || stack.isEmpty() || !(countValue instanceof Number)) {
+                        incomplete("results[" + entry.getKey() + "]");
+                        return;
+                    }
+                    JsonObject effect = effect("select_recycling_output", "results[" + entry.getKey() + "]");
+                    effect.addProperty("selector_kind", "part_pattern");
+                    effect.addProperty("selector_id", String.valueOf(entry.getKey()));
+                    JsonObject output = itemEdge(stack, "results[" + entry.getKey() + "]");
+                    effect.add("output", output.deepCopy());
+                    item(stack, Direction.OUTPUT, "results[" + entry.getKey() + "]");
+                    addNumber(effect, "maximum_count", countValue);
+                });
+            } else incomplete("results");
+        }
+
+        private void tconstructToolRecycle(Object recipe) {
+            if (!collectSizedIngredient(readDeclaredField(recipe, "toolRequirement"), "toolRequirement")) incomplete("toolRequirement");
+            collectDeclaredField(recipe, "pattern", Direction.INPUT);
+            requirement("tool_must_have_no_modifiers", true, "matches()");
+            requirement("quantity_basis", "tool_material_slots_and_durability", "assemble()+getLeftover()");
+            JsonObject effect = effect("recover_selected_material_tool_part", "assemble()+getLeftover()");
+            effect.addProperty("selector_kind", "part_pattern");
+            effect.addProperty("material_source", "selected_tool_material_slot");
+            Object parts = readDeclaredField(recipe, "parts");
+            Set<String> allowedIds = new TreeSet<>();
+            if (parts instanceof Collection<?> values) {
+                for (Object value : values) {
+                    if (value instanceof net.minecraft.world.item.Item item) {
+                        ResourceLocation id = BuiltInRegistries.ITEM.getKey(item);
+                        if (id != null) allowedIds.add(id.toString());
+                    }
+                }
+            }
+            if (allowedIds.isEmpty()) {
+                effect.addProperty("allowed_parts", "tool_definition_material_parts");
+            } else {
+                JsonArray allowed = new JsonArray();
+                allowedIds.forEach(allowed::add);
+                effect.add("allowed_parts", allowed);
+            }
+        }
+
+        private void tconstructToolDamage(Object recipe) {
+            Object ingredient = readDeclaredField(recipe, "ingredient");
+            if (ingredient instanceof Ingredient value) collect(value, Direction.INPUT, "ingredient", 0);
+            else incomplete("ingredient");
+            requirement("mutable_tool_input", true, "ITinkerStationContainer.getTinkerableStack()");
+            Object damage = readDeclaredField(recipe, "damageAmount");
+            if (!(damage instanceof Number)) incomplete("damageAmount");
+            JsonObject effect = effect("add_tool_damage", "damageAmount");
+            addNumber(effect, "damage", damage);
+        }
+
+        private void matterCannonAmmo(Object recipe) {
+            Object ammo = invokeNoArg(recipe, "getAmmo");
+            if (ammo instanceof Ingredient ingredient) collect(ingredient, Direction.INPUT, "getAmmo()", 0);
+            else incomplete("getAmmo()");
+            Object weight = invokeNoArg(recipe, "getWeight");
+            if (weight instanceof Number number) requirement("ammo_weight", number, "getWeight()");
+            else incomplete("getWeight()");
+            requirement("consumer_machine", "ae2:matter_cannon", "MatterCannonAmmo.TYPE_ID");
+            JsonObject effect = effect("define_projectile_damage_profile", "getWeight()");
+            addNumber(effect, "weight", weight);
+        }
+
+        private void operation(String kind, String path) {
+            if (operationKind != null) return;
+            operationKind = kind;
+            evidence("operation_kind", path);
+        }
+
+        private JsonObject effect(String kind, String path) {
+            JsonObject row = new JsonObject();
+            row.addProperty("kind", kind);
+            row.addProperty("semantic_path", path);
+            effects.add(row);
+            evidence("effect", path);
+            return row;
+        }
+
+        private void incomplete(String path) {
+            contextualComplete = false;
+            evidence("unavailable_contextual_evidence", path);
+        }
+
+        private static void addNumber(JsonObject target, String key, Object value) {
+            if (value instanceof Number number) target.addProperty(key, number);
+        }
+
+        private static void addMobEffectTarget(JsonObject target, Object value) {
+            if (value instanceof MobEffect effect) {
+                ResourceLocation id = BuiltInRegistries.MOB_EFFECT.getKey(effect);
+                if (id != null) {
+                    target.addProperty("target_kind", "mob_effect");
+                    target.addProperty("target_id", id.toString());
+                }
+            }
+        }
+
+        private static JsonArray mobEffectIds(Object value) {
+            JsonArray ids = new JsonArray();
+            if (value instanceof Collection<?> effects) {
+                effects.stream().filter(MobEffect.class::isInstance).map(MobEffect.class::cast)
+                        .map(BuiltInRegistries.MOB_EFFECT::getKey).filter(java.util.Objects::nonNull)
+                        .map(ResourceLocation::toString).sorted().forEach(ids::add);
+            }
+            return ids;
+        }
+
+        private int collectRegistryItemsBySuperclass(String className, String path) {
+            List<net.minecraft.world.item.Item> matches = BuiltInRegistries.ITEM.stream()
+                    .filter(item -> superclassNamed(item.getClass(), className))
+                    .sorted(Comparator.comparing(item -> String.valueOf(BuiltInRegistries.ITEM.getKey(item))))
+                    .toList();
+            matches.forEach(item -> resource("item", BuiltInRegistries.ITEM.getKey(item), Direction.INPUT, path));
+            return matches.size();
+        }
+
+        private static boolean superclassNamed(Class<?> type, String className) {
+            for (Class<?> cursor = type; cursor != null; cursor = cursor.getSuperclass()) {
+                if (cursor.getName().equals(className)) return true;
+            }
+            return false;
+        }
+
+        private boolean collectFluidOutput(Object output, Direction direction, String path) {
+            Object value = invokeNoArg(output, "get");
+            if (value instanceof FluidStack stack && !stack.isEmpty()) {
+                fluid(stack, direction, path + ".get()");
+                return true;
+            }
+            return false;
+        }
+
+        private boolean collectSizedIngredient(Object sized, String path) {
+            Object ingredientValue = invokeNoArg(sized, "getIngredient");
+            Object amountValue = invokeNoArg(sized, "getAmountNeeded");
+            if (ingredientValue instanceof Ingredient ingredient) {
+                ingredient(ingredient, Direction.INPUT, path + ".getIngredient()",
+                        amountValue instanceof Number number ? number.intValue() : 1);
+                return amountValue instanceof Number;
+            }
+            return false;
+        }
+
+        private static Object invokeNoArg(Object root, String name) {
+            if (root == null) return null;
+            try {
+                Method method = root.getClass().getMethod(name);
+                method.trySetAccessible();
+                return method.invoke(root);
+            } catch (Throwable ignored) {
+                return null;
             }
         }
 
@@ -315,6 +622,10 @@ final class SemanticRecipeAdapter {
         }
 
         private void ingredient(Ingredient ingredient, Direction direction, String path) {
+            ingredient(ingredient, direction, path, 1);
+        }
+
+        private void ingredient(Ingredient ingredient, Direction direction, String path, int count) {
             if (direction == Direction.UNKNOWN || direction == Direction.OUTPUT) return;
             JsonElement definition;
             try {
@@ -329,12 +640,13 @@ final class SemanticRecipeAdapter {
             JsonArray alternatives = new JsonArray();
             String tagId = RecipeGraphExporter.ingredientTag(definition);
             if (tagId != null) {
-                JsonObject edge = edge("tag", tagId, RecipeGraphExporter.ingredientCount(definition, ingredient), path);
+                JsonObject edge = edge("tag", tagId, Math.max(count, RecipeGraphExporter.ingredientCount(definition, ingredient)), path);
                 addEdge(direction, edge);
                 group.addProperty("membership", "generated/runtime-dumps/tags.json#item_tags/" + tagId);
             } else {
                 try {
                     for (ItemStack stack : ingredient.getItems()) {
+                        if (count > 1) stack = stack.copyWithCount(count);
                         JsonObject edge = itemEdge(stack, path);
                         alternatives.add(edge.deepCopy());
                         addEdge(direction, edge);

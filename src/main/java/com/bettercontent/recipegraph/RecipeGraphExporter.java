@@ -302,6 +302,8 @@ public final class RecipeGraphExporter {
         JsonArray catalysts = new JsonArray();
         JsonArray fluidsIn = new JsonArray();
         JsonArray fluidsOut = new JsonArray();
+        JsonArray effects = new JsonArray();
+        String operationKind = "item_transform";
 
         JsonObject requirements = new JsonObject();
         requirements.add("energy", null);
@@ -318,7 +320,7 @@ public final class RecipeGraphExporter {
         }
 
         SemanticRecipeAdapter.Result semantics = SemanticRecipeAdapter.inspect(recipe);
-        if (groups.isEmpty() && !semantics.inputGroups().isEmpty()) {
+        if (groups.isEmpty()) {
             append(groups, semantics.inputGroups());
             append(flatInputs, semantics.inputs());
         }
@@ -329,23 +331,31 @@ public final class RecipeGraphExporter {
         append(catalysts, semantics.catalysts());
         append(fluidsIn, semantics.fluidsIn());
         append(fluidsOut, semantics.fluidsOut());
+        append(effects, semantics.effects());
+        if (semantics.operationKind() != null) operationKind = semantics.operationKind();
         semantics.requirements().entrySet().forEach(entry -> {
             mergeRequirement(requirements, entry.getKey(), entry.getValue());
         });
-        if (semantics.hasEdges()) {
-            adapter = adapter == null ? "public_recipe_semantics_v1" : adapter + "+public_recipe_semantics_v1";
+        if (semantics.hasSemantics()) {
+            adapter = adapter == null ? "public_recipe_semantics_v2" : adapter + "+public_recipe_semantics_v2";
             row.add("normalization_evidence", semantics.evidence());
         }
-
-        if (outputs.isEmpty() && fluidsOut.isEmpty()) {
-            issues.add("no static primary output");
+        if (!semantics.contextualComplete()) {
+            issues.add("contextual adapter could not prove every typed effect");
             partial = true;
         }
+
+        if (!hasNavigableOutcome(outputs, fluidsOut, effects)) {
+            issues.add("no static output or contextual effect");
+            partial = true;
+        }
+        row.addProperty("operation_kind", operationKind);
         row.add("outputs", outputs);
         row.add("output_groups", outputGroups);
         row.add("catalysts", catalysts);
         row.add("fluids_in", fluidsIn);
         row.add("fluids_out", fluidsOut);
+        row.add("effects", effects);
         row.add("requirements", requirements);
         JsonArray machines = new JsonArray();
         JsonObject machine = new JsonObject();
@@ -373,8 +383,8 @@ public final class RecipeGraphExporter {
         } finally {
             buffer.release();
         }
-        if (groups.isEmpty() && outputs.isEmpty() && fluidsIn.isEmpty() && fluidsOut.isEmpty()) {
-            issues.add("no normalized inputs or outputs");
+        if (groups.isEmpty() && flatInputs.isEmpty() && fluidsIn.isEmpty() && !hasNavigableOutcome(outputs, fluidsOut, effects)) {
+            issues.add("no normalized inputs, outputs, or contextual effects");
             partial = true;
         }
         row.add("serializer_payload", payload);
@@ -392,6 +402,10 @@ public final class RecipeGraphExporter {
     static void mergeRequirement(JsonObject requirements, String key, JsonElement value) {
         JsonElement existing = requirements.get(key);
         if (existing == null || existing.isJsonNull()) requirements.add(key, value);
+    }
+
+    static boolean hasNavigableOutcome(JsonArray outputs, JsonArray fluidsOut, JsonArray effects) {
+        return !outputs.isEmpty() || !fluidsOut.isEmpty() || !effects.isEmpty();
     }
 
     private static boolean isPneumaticPressureChamber(Recipe<?> recipe, String type) {

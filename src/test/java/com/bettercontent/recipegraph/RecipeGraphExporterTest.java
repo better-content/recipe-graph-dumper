@@ -2,6 +2,7 @@ package com.bettercontent.recipegraph;
 
 import com.google.gson.JsonParser;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonArray;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
@@ -76,5 +77,39 @@ final class RecipeGraphExporterTest {
         assertEquals(4, requirements.get("max_tool_size").getAsInt());
         RecipeGraphExporter.mergeRequirement(requirements, "max_tool_size", JsonParser.parseString("9"));
         assertEquals(4, requirements.get("max_tool_size").getAsInt());
+    }
+
+    @Test
+    void contextualFamiliesHaveExplicitMachineNavigableOperationKinds() {
+        assertEquals("potion_flask_state_mutation", SemanticRecipeAdapter.operationKind(
+                "wayoftime.bloodmagic.recipe.flask.RecipePotionIncreaseLength"));
+        assertEquals("potion_flask_state_mutation", SemanticRecipeAdapter.operationKind(
+                "wayoftime.bloodmagic.recipe.flask.RecipePotionTransform"));
+        assertNull(SemanticRecipeAdapter.operationKind(
+                "wayoftime.bloodmagic.recipe.flask.RecipePotionFlaskTransform"));
+        assertEquals("material_scaled_melting", SemanticRecipeAdapter.operationKind(
+                "slimeknights.tconstruct.library.recipe.melting.MaterialMeltingRecipe"));
+        assertEquals("conditional_part_recycling", SemanticRecipeAdapter.operationKind(
+                "slimeknights.tconstruct.library.recipe.partbuilder.recycle.PartBuilderRecycle"));
+        assertEquals("conditional_tool_part_recycling", SemanticRecipeAdapter.operationKind(
+                "slimeknights.tconstruct.tables.recipe.PartBuilderToolRecycle"));
+        assertEquals("tool_state_mutation", SemanticRecipeAdapter.operationKind(
+                "slimeknights.tconstruct.tables.recipe.TinkerStationDamagingRecipe"));
+        assertEquals("matter_cannon_ammo_metadata", SemanticRecipeAdapter.operationKind(
+                "appeng.recipes.mattercannon.MatterCannonAmmo"));
+    }
+
+    @Test
+    void clientSynchronizationTrackersAreNotPromotedToGameplaySemantics() {
+        assertNull(SemanticRecipeAdapter.operationKind("com.almostreliable.unified.recipe.ClientRecipeTracker"));
+        assertNull(SemanticRecipeAdapter.operationKind(
+                "slimeknights.tconstruct.tables.recipe.TinkerStationPartSwapping"));
+    }
+
+    @Test
+    void contextualEffectsAreValidOutcomesWithoutInventedStaticOutputs() {
+        JsonArray effects = JsonParser.parseString("[{\"kind\":\"add_tool_damage\",\"damage\":5}]").getAsJsonArray();
+        assertTrue(RecipeGraphExporter.hasNavigableOutcome(new JsonArray(), new JsonArray(), effects));
+        assertFalse(RecipeGraphExporter.hasNavigableOutcome(new JsonArray(), new JsonArray(), new JsonArray()));
     }
 }

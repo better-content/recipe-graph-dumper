@@ -24,6 +24,11 @@ Optional recipe adapters only emit edges backed by live accessors or pinned
 serializer state. In addition to item and fluid edges, the graph can therefore
 name block transformations, TConstruct materials/modifiers/modifier slots, and
 enchantments without pretending those state transitions are ordinary items.
+Context-dependent rules use an explicit `operation_kind`, typed `effects`, and
+typed `requirements`: Blood Magic flask state changes, TConstruct material-cost
+melting and recycling/tool mutations, and AE2 matter-cannon ammo profiles are
+therefore navigable without fake static outputs. AlmostUnified client recipe
+trackers remain partial because synchronization metadata is not gameplay.
 
 The command is intentionally the only trigger. The mod performs no work during
 startup, reload, or player synchronization.

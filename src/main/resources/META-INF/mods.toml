@@ -12,6 +12,9 @@ description='''
 Command-driven export of the final live server recipe graph and registry evidence.
 '''
 
+[[mixins]]
+config="bcrecipegraph.mixins.json"
+
 [[dependencies.${mod_id}]]
 modId="forge"
 mandatory=true

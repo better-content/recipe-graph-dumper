@@ -57,7 +57,7 @@ final class RuntimeEvidenceExporter {
             try {
                 LootTable table = manager.getElement(new LootDataId<>(LootDataType.TABLE, key));
                 tables.add(key.toString(), LootDataType.TABLE.parser().toJsonTree(table));
-            } catch (Exception error) {
+            } catch (Throwable error) {
                 issues.add(issue(key.toString(), error));
             }
         }
@@ -284,7 +284,7 @@ final class RuntimeEvidenceExporter {
 
     private record EncodedRegistry(JsonObject rows, int registered) {}
 
-    private static JsonObject issue(String id, Exception error) {
+    private static JsonObject issue(String id, Throwable error) {
         JsonObject issue = new JsonObject();
         issue.addProperty("id", id);
         issue.addProperty("error", error.getClass().getName() + (error.getMessage() == null ? "" : ": " + error.getMessage()));

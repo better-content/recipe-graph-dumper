@@ -96,6 +96,7 @@ final class SemanticRecipeAdapter {
     static String operationKind(String className) {
         if (isBloodMagicPotionStateMutation(className)) return "potion_flask_state_mutation";
         if (isVanillaSpecialCrafting(className)) return "dynamic_item_state_crafting";
+        if (isKnownModSpecialRecipe(className)) return "dynamic_item_state_crafting";
         return switch (className) {
             case "slimeknights.tconstruct.library.recipe.melting.MaterialMeltingRecipe" -> "material_scaled_melting";
             case "slimeknights.tconstruct.library.recipe.partbuilder.recycle.PartBuilderRecycle" -> "conditional_part_recycling";
@@ -128,6 +129,14 @@ final class SemanticRecipeAdapter {
             case "org.valkyrienskies.clockwork.content.logistics.gas.crafter.GasCraftingRecipe" -> "gas_reaction";
             case "slimeknights.tconstruct.tables.recipe.TinkerStationPartSwapping" -> "tool_part_replacement";
             case "slimeknights.tconstruct.library.recipe.worktable.ModifierSetWorktableRecipe" -> "tool_modifier_set_mutation";
+            case "io.redspace.ironsspellbooks.recipe_types.alchemist_cauldron.BrewAlchemistCauldronRecipe" -> "fluid_brewing";
+            case "twilightforest.item.recipe.UncraftingRecipe" -> "item_disassembly";
+            case "appeng.recipes.entropy.EntropyRecipe" -> "world_state_transform";
+            case "com.hollingsworth.arsnouveau.api.recipe.DispelEntityRecipe" -> "entity_dispel_loot";
+            case "com.hollingsworth.arsnouveau.api.enchanting_apparatus.ReactiveEnchantmentRecipe" -> "reactive_enchantment_application";
+            case "com.hollingsworth.arsnouveau.api.enchanting_apparatus.SpellWriteRecipe" -> "spell_state_write";
+            case "com.hollingsworth.arsnouveau.api.recipe.SummonRitualRecipe" -> "ritual_entity_summoning";
+            case "com.simibubi.create.content.kinetics.fan.processing.SplashingRecipe" -> "fan_splashing";
             default -> null;
         };
     }
@@ -146,12 +155,72 @@ final class SemanticRecipeAdapter {
                 || className.equals("net.minecraft.world.item.crafting.ArmorDyeRecipe");
     }
 
+    private static boolean isKnownModSpecialRecipe(String className) {
+        return switch (className) {
+            case "wayoftime.bloodmagic.recipe.RecipeTomeCombine",
+                 "wayoftime.bloodmagic.recipe.RecipeFilterCopy",
+                 "wayoftime.bloodmagic.recipe.RecipeAnointmentApply",
+                 "vectorwing.farmersdelight.common.crafting.FoodServingRecipe",
+                 "vectorwing.farmersdelight.common.crafting.DoughRecipe",
+                 "twilightforest.item.recipe.MoonwormQueenRepairRecipe",
+                 "twilightforest.item.recipe.MazeMapCloningRecipe",
+                 "twilightforest.item.recipe.MagicMapCloningRecipe",
+                 "slimeknights.tconstruct.tools.recipe.ToggleInteractionWorktableRecipe",
+                 "slimeknights.tconstruct.tools.recipe.ModifierSortingRecipe",
+                 "slimeknights.tconstruct.tools.recipe.ArmorTrimRecipe",
+                 "slimeknights.tconstruct.tools.recipe.ArmorDyeingRecipe",
+                 "slimeknights.tconstruct.tables.recipe.TinkerStationRepairRecipe",
+                 "slimeknights.tconstruct.tables.recipe.CraftingTableRepairKitRecipe",
+                 "org.violetmoon.zeta.recipe.ZetaDyeRecipe",
+                 "org.violetmoon.quark.content.tweaks.recipe.SlabToBlockRecipe",
+                 "org.valkyrienskies.clockwork.content.contraptions.propeller.blades.item.CraftingTableBladeRecipe",
+                 "net.p3pp3rf1y.sophisticatedstorage.crafting.StorageDyeRecipe",
+                 "net.p3pp3rf1y.sophisticatedstorage.crafting.FlatTopBarrelToggleRecipe",
+                 "net.p3pp3rf1y.sophisticatedstorage.crafting.BarrelMaterialRecipe",
+                 "net.p3pp3rf1y.sophisticatedcore.crafting.UpgradeClearRecipe",
+                 "net.p3pp3rf1y.sophisticatedbackpacks.crafting.BackpackDyeRecipe",
+                 "net.mehvahdjukaar.supplementaries.common.items.crafting.WeatheredMapRecipe",
+                 "net.mehvahdjukaar.supplementaries.common.items.crafting.TrappedPresentRecipe",
+                 "net.mehvahdjukaar.supplementaries.common.items.crafting.TippedBambooSpikesRecipe",
+                 "net.mehvahdjukaar.supplementaries.common.items.crafting.TatteredBookRecipe",
+                 "net.mehvahdjukaar.supplementaries.common.items.crafting.SoapClearRecipe",
+                 "net.mehvahdjukaar.supplementaries.common.items.crafting.SafeRecipe",
+                 "net.mehvahdjukaar.supplementaries.common.items.crafting.RopeArrowCreateRecipe",
+                 "net.mehvahdjukaar.supplementaries.common.items.crafting.RopeArrowAddRecipe",
+                 "net.mehvahdjukaar.supplementaries.common.items.crafting.RepairBubbleBlowerRecipe",
+                 "net.mehvahdjukaar.supplementaries.common.items.crafting.PresentDyeRecipe",
+                 "net.mehvahdjukaar.supplementaries.common.items.crafting.ItemLoreRecipe",
+                 "net.mehvahdjukaar.supplementaries.common.items.crafting.FlagFromBannerRecipe",
+                 "net.mehvahdjukaar.supplementaries.common.items.crafting.BlackboardDuplicateRecipe",
+                 "net.mehvahdjukaar.amendments.common.recipe.DyeBottleRecipe",
+                 "net.joefoxe.hexerei.data.recipes.WhistleBindRecipe",
+                 "net.joefoxe.hexerei.data.recipes.KeychainUndoRecipe",
+                 "net.joefoxe.hexerei.data.recipes.KeychainRecipe",
+                 "net.joefoxe.hexerei.data.recipes.FillWaxingKitRecipe",
+                 "net.joefoxe.hexerei.data.recipes.CutCandleRecipe",
+                 "net.joefoxe.hexerei.data.recipes.CrowAmuletUndoRecipe",
+                 "net.joefoxe.hexerei.data.recipes.CrowAmuletRecipe",
+                 "net.joefoxe.hexerei.data.recipes.BookOfShadowsDyeRecipe",
+                 "dev.murad.shipping.setup.ModRecipeSerializers$2",
+                 "dev.murad.shipping.setup.ModRecipeSerializers$1",
+                 "dev.lukebemish.excavatedvariants.impl.recipe.OreConversionRecipe",
+                 "com.simibubi.create.foundation.recipe.ItemCopyingRecipe",
+                 "com.simibubi.create.content.equipment.toolbox.ToolboxDyeingRecipe",
+                 "com.klikli_dev.occultism.crafting.recipe.BoundBookOfBindingRecipe",
+                 "com.endertech.minecraft.mods.adpother.recipes.FilterChangeRecipe",
+                 "com.aetherteam.aether.recipe.recipes.item.SwetBannerRecipe",
+                 "appeng.recipes.game.FacadeRecipe" -> true;
+            default -> false;
+        };
+    }
+
     private static boolean isBloodMagicPotionStateMutation(String className) {
         return className.equals("wayoftime.bloodmagic.recipe.flask.RecipePotionIncreaseLength")
                 || className.equals("wayoftime.bloodmagic.recipe.flask.RecipePotionIncreasePotency")
                 || className.equals("wayoftime.bloodmagic.recipe.flask.RecipePotionEffect")
                 || className.equals("wayoftime.bloodmagic.recipe.flask.RecipePotionTransform")
-                || className.equals("wayoftime.bloodmagic.recipe.flask.RecipePotionFill");
+                || className.equals("wayoftime.bloodmagic.recipe.flask.RecipePotionFill")
+                || className.equals("wayoftime.bloodmagic.recipe.flask.RecipePotionCycle");
     }
 
     static Direction direction(String name) {
@@ -287,6 +356,8 @@ final class SemanticRecipeAdapter {
                 goetySoulAbsorber(recipe);
             } else if (isVanillaSpecialCrafting(className)) {
                 vanillaSpecialCrafting(className);
+            } else if (isKnownModSpecialRecipe(className)) {
+                modSpecialRecipe(className);
             } else if (className.equals("slimeknights.tconstruct.library.recipe.modifiers.adding.OverslimeCraftingTableRecipe")) {
                 tconstructOverslime(recipe);
             } else if (className.equals("slimeknights.tconstruct.library.recipe.fuel.MeltingFuel")) {
@@ -320,6 +391,22 @@ final class SemanticRecipeAdapter {
                 tconstructPartSwapping(recipe);
             } else if (className.equals("slimeknights.tconstruct.library.recipe.worktable.ModifierSetWorktableRecipe")) {
                 tconstructModifierSet(recipe);
+            } else if (className.equals("io.redspace.ironsspellbooks.recipe_types.alchemist_cauldron.BrewAlchemistCauldronRecipe")) {
+                ironsCauldronBrew(recipe);
+            } else if (className.equals("twilightforest.item.recipe.UncraftingRecipe")) {
+                twilightUncrafting(recipe);
+            } else if (className.equals("appeng.recipes.entropy.EntropyRecipe")) {
+                ae2Entropy(recipe);
+            } else if (className.equals("com.hollingsworth.arsnouveau.api.recipe.DispelEntityRecipe")) {
+                arsDispelEntity(recipe);
+            } else if (className.equals("com.hollingsworth.arsnouveau.api.enchanting_apparatus.ReactiveEnchantmentRecipe")) {
+                arsReactiveEnchantment(recipe);
+            } else if (className.equals("com.hollingsworth.arsnouveau.api.enchanting_apparatus.SpellWriteRecipe")) {
+                arsSpellWrite(recipe);
+            } else if (className.equals("com.hollingsworth.arsnouveau.api.recipe.SummonRitualRecipe")) {
+                arsSummonRitual(recipe);
+            } else if (className.equals("com.simibubi.create.content.kinetics.fan.processing.SplashingRecipe")) {
+                createSplashing(recipe);
             } else if (className.equals("slimeknights.tconstruct.library.recipe.material.MaterialRecipe")) {
                 collectAccessor(recipe, "getMaterial", Direction.OUTPUT);
             } else if (className.equals("slimeknights.tconstruct.library.recipe.modifiers.ModifierSalvage")) {
@@ -393,6 +480,12 @@ final class SemanticRecipeAdapter {
                 JsonObject effect = effect("truncate_potion_effect_list", "maxEffects");
                 addNumber(effect, "maximum_effects", maximum);
                 requirement("minimum_existing_effects", 1, "canModifyFlask()");
+            } else if (className.endsWith("RecipePotionCycle")) {
+                Object cycles = readDeclaredField(recipe, "numCycles");
+                if (!(cycles instanceof Number)) incomplete("numCycles");
+                JsonObject effect = effect("cycle_potion_effect_order", "getOutput()");
+                addNumber(effect, "cycle_count", cycles);
+                effect.addProperty("output_source", "mutable_alchemy_flask_input");
             }
         }
 
@@ -713,6 +806,119 @@ final class SemanticRecipeAdapter {
             effect.addProperty("output_source", "runtime_crafting_inputs");
         }
 
+        private void modSpecialRecipe(String className) {
+            requirement("runtime_recipe_inputs", true, "matches()+assemble()/getResult()");
+            switch (className) {
+                case "wayoftime.bloodmagic.recipe.RecipeTomeCombine" -> dynamicCrafting(
+                        "merge_bloodmagic_tome_state", "bloodmagic_tome", "compatible_tome_or_upgrade");
+                case "wayoftime.bloodmagic.recipe.RecipeFilterCopy" -> dynamicCrafting(
+                        "copy_bloodmagic_filter_configuration", "configured_filter", "blank_compatible_filter");
+                case "wayoftime.bloodmagic.recipe.RecipeAnointmentApply" -> dynamicCrafting(
+                        "apply_anointment_to_item", "anointment", "anointable_item");
+                case "vectorwing.farmersdelight.common.crafting.FoodServingRecipe" -> dynamicCrafting(
+                        "serve_food_into_container", "serving_container", "servable_food");
+                case "vectorwing.farmersdelight.common.crafting.DoughRecipe" -> dynamicCrafting(
+                        "hydrate_flour_into_dough", "flour", "water_container");
+                case "twilightforest.item.recipe.MoonwormQueenRepairRecipe" -> dynamicCrafting(
+                        "repair_moonworm_queen", "damaged_moonworm_queen", "torchberries");
+                case "twilightforest.item.recipe.MazeMapCloningRecipe" -> dynamicCrafting(
+                        "copy_twilight_maze_map_id", "filled_maze_map", "empty_maze_maps");
+                case "twilightforest.item.recipe.MagicMapCloningRecipe" -> dynamicCrafting(
+                        "copy_twilight_magic_map_id", "filled_magic_map", "empty_magic_maps");
+                case "slimeknights.tconstruct.tools.recipe.ToggleInteractionWorktableRecipe" -> dynamicCrafting(
+                        "toggle_selected_tinker_interaction", "modifiable_tinker_tool", "runtime_interaction_choice");
+                case "slimeknights.tconstruct.tools.recipe.ModifierSortingRecipe" -> dynamicCrafting(
+                        "reorder_tinker_tool_modifiers", "modifiable_tinker_tool", "runtime_modifier_order");
+                case "slimeknights.tconstruct.tools.recipe.ArmorTrimRecipe" -> dynamicCrafting(
+                        "apply_armor_trim_to_tinker_armor", "trimmable_tinker_armor", "trim_template", "trim_material");
+                case "slimeknights.tconstruct.tools.recipe.ArmorDyeingRecipe" -> dynamicCrafting(
+                        "blend_tinker_armor_dye_color", "dyeable_tinker_armor", "dyes");
+                case "slimeknights.tconstruct.tables.recipe.TinkerStationRepairRecipe" -> dynamicCrafting(
+                        "repair_tinker_tool_from_compatible_material", "damaged_tinker_tool", "compatible_repair_material");
+                case "slimeknights.tconstruct.tables.recipe.CraftingTableRepairKitRecipe" -> dynamicCrafting(
+                        "repair_tinker_repair_kit_from_material", "damaged_repair_kit", "compatible_repair_material");
+                case "org.violetmoon.zeta.recipe.ZetaDyeRecipe" -> dynamicCrafting(
+                        "apply_dye_color_preserving_item_state", "zeta_dyeable_item", "dye");
+                case "org.violetmoon.quark.content.tweaks.recipe.SlabToBlockRecipe" -> dynamicCrafting(
+                        "combine_matching_slabs_into_block", "two_matching_slabs");
+                case "org.valkyrienskies.clockwork.content.contraptions.propeller.blades.item.CraftingTableBladeRecipe" -> dynamicCrafting(
+                        "assemble_clockwork_propeller_blade", "propeller_blade_components");
+                case "net.p3pp3rf1y.sophisticatedstorage.crafting.StorageDyeRecipe" -> dynamicCrafting(
+                        "dye_sophisticated_storage_preserving_state", "sophisticated_storage", "dyes");
+                case "net.p3pp3rf1y.sophisticatedstorage.crafting.FlatTopBarrelToggleRecipe" -> dynamicCrafting(
+                        "toggle_barrel_flat_top", "sophisticated_barrel");
+                case "net.p3pp3rf1y.sophisticatedstorage.crafting.BarrelMaterialRecipe" -> dynamicCrafting(
+                        "apply_barrel_material_layers", "sophisticated_barrel", "barrel_material_blocks");
+                case "net.p3pp3rf1y.sophisticatedcore.crafting.UpgradeClearRecipe" -> dynamicCrafting(
+                        "clear_sophisticated_upgrade_configuration", "configured_sophisticated_upgrade");
+                case "net.p3pp3rf1y.sophisticatedbackpacks.crafting.BackpackDyeRecipe" -> dynamicCrafting(
+                        "dye_sophisticated_backpack_preserving_state", "sophisticated_backpack", "dyes");
+                case "net.mehvahdjukaar.supplementaries.common.items.crafting.WeatheredMapRecipe" -> dynamicCrafting(
+                        "weather_map_preserving_map_id", "filled_map", "weathering_ingredient");
+                case "net.mehvahdjukaar.supplementaries.common.items.crafting.TrappedPresentRecipe" -> dynamicCrafting(
+                        "convert_present_to_trapped_preserving_contents", "present", "trap_component");
+                case "net.mehvahdjukaar.supplementaries.common.items.crafting.TippedBambooSpikesRecipe" -> dynamicCrafting(
+                        "apply_potion_to_bamboo_spikes", "bamboo_spikes", "potion");
+                case "net.mehvahdjukaar.supplementaries.common.items.crafting.TatteredBookRecipe" -> dynamicCrafting(
+                        "tatter_book_preserving_book_state", "book", "tattering_ingredient");
+                case "net.mehvahdjukaar.supplementaries.common.items.crafting.SoapClearRecipe" -> dynamicCrafting(
+                        "clear_supported_item_cosmetic_state", "soap", "soap_clearable_item");
+                case "net.mehvahdjukaar.supplementaries.common.items.crafting.SafeRecipe" -> dynamicCrafting(
+                        "craft_safe_preserving_container_state", "safe_components");
+                case "net.mehvahdjukaar.supplementaries.common.items.crafting.RopeArrowCreateRecipe" -> dynamicCrafting(
+                        "create_rope_arrow", "arrow", "rope");
+                case "net.mehvahdjukaar.supplementaries.common.items.crafting.RopeArrowAddRecipe" -> dynamicCrafting(
+                        "extend_rope_arrow", "rope_arrow", "rope");
+                case "net.mehvahdjukaar.supplementaries.common.items.crafting.RepairBubbleBlowerRecipe" -> dynamicCrafting(
+                        "restore_bubble_blower_charge", "bubble_blower", "soap");
+                case "net.mehvahdjukaar.supplementaries.common.items.crafting.PresentDyeRecipe" -> dynamicCrafting(
+                        "dye_present_preserving_contents", "present", "dye");
+                case "net.mehvahdjukaar.supplementaries.common.items.crafting.ItemLoreRecipe" -> dynamicCrafting(
+                        "copy_or_apply_item_lore", "target_item", "lore_source");
+                case "net.mehvahdjukaar.supplementaries.common.items.crafting.FlagFromBannerRecipe" -> dynamicCrafting(
+                        "convert_banner_to_flag_preserving_patterns", "banner");
+                case "net.mehvahdjukaar.supplementaries.common.items.crafting.BlackboardDuplicateRecipe" -> dynamicCrafting(
+                        "copy_blackboard_drawing", "configured_blackboard", "blank_blackboard");
+                case "net.mehvahdjukaar.amendments.common.recipe.DyeBottleRecipe" -> dynamicCrafting(
+                        "dye_potion_bottle_preserving_contents", "potion_bottle", "dye");
+                case "net.joefoxe.hexerei.data.recipes.WhistleBindRecipe" -> dynamicCrafting(
+                        "bind_whistle_to_entity_reference", "whistle", "bindable_entity_token");
+                case "net.joefoxe.hexerei.data.recipes.KeychainUndoRecipe" -> dynamicCrafting(
+                        "remove_item_from_keychain", "filled_keychain");
+                case "net.joefoxe.hexerei.data.recipes.KeychainRecipe" -> dynamicCrafting(
+                        "attach_item_to_keychain", "keychain", "keychain_item");
+                case "net.joefoxe.hexerei.data.recipes.FillWaxingKitRecipe" -> dynamicCrafting(
+                        "fill_waxing_kit", "waxing_kit", "wax");
+                case "net.joefoxe.hexerei.data.recipes.CutCandleRecipe" -> dynamicCrafting(
+                        "cut_candle_stack", "hexerei_candle", "cutting_tool");
+                case "net.joefoxe.hexerei.data.recipes.CrowAmuletUndoRecipe" -> dynamicCrafting(
+                        "remove_item_from_crow_amulet", "filled_crow_amulet");
+                case "net.joefoxe.hexerei.data.recipes.CrowAmuletRecipe" -> dynamicCrafting(
+                        "attach_item_to_crow_amulet", "crow_amulet", "amulet_item");
+                case "net.joefoxe.hexerei.data.recipes.BookOfShadowsDyeRecipe" -> dynamicCrafting(
+                        "dye_book_of_shadows_preserving_state", "book_of_shadows", "dye");
+                case "dev.murad.shipping.setup.ModRecipeSerializers$2" -> dynamicCrafting(
+                        "copy_locomotive_route", "route_configured_locomotive", "blank_locomotive");
+                case "dev.murad.shipping.setup.ModRecipeSerializers$1" -> dynamicCrafting(
+                        "copy_tug_route", "route_configured_tug", "blank_tug");
+                case "dev.lukebemish.excavatedvariants.impl.recipe.OreConversionRecipe" -> dynamicCrafting(
+                        "convert_ore_host_variant_preserving_ore_type", "excavated_variant_ore", "target_host_stone");
+                case "com.simibubi.create.foundation.recipe.ItemCopyingRecipe" -> dynamicCrafting(
+                        "copy_create_item_configuration", "configured_create_item", "blank_compatible_items");
+                case "com.simibubi.create.content.equipment.toolbox.ToolboxDyeingRecipe" -> dynamicCrafting(
+                        "dye_toolbox_preserving_inventory", "create_toolbox", "dye");
+                case "com.klikli_dev.occultism.crafting.recipe.BoundBookOfBindingRecipe" -> dynamicCrafting(
+                        "bind_book_of_binding_to_spirit", "book_of_binding", "spirit_binding_reference");
+                case "com.endertech.minecraft.mods.adpother.recipes.FilterChangeRecipe" -> dynamicCrafting(
+                        "change_air_filter_material_preserving_state", "air_filter", "filter_material");
+                case "com.aetherteam.aether.recipe.recipes.item.SwetBannerRecipe" -> dynamicCrafting(
+                        "apply_swet_pattern_to_banner", "banner", "swet_ball");
+                case "appeng.recipes.game.FacadeRecipe" -> dynamicCrafting(
+                        "encode_block_state_into_ae2_facade", "ae2_facade_blank", "facade_block_item");
+                default -> incomplete(className);
+            }
+        }
+
         private void tconstructOverslime(Object recipe) {
             Object tools = readDeclaredField(recipe, "tools");
             Object ingredientValue = readDeclaredField(recipe, "ingredient");
@@ -978,6 +1184,129 @@ final class SemanticRecipeAdapter {
             effect.addProperty("output_source", "mutable_tinker_tool_input");
         }
 
+        private void ironsCauldronBrew(Object recipe) {
+            Object fluidInput = readDeclaredField(recipe, "fluidIn");
+            Object reagent = readDeclaredField(recipe, "reagent");
+            int inputCount = fluidInput instanceof FluidStack stack && !stack.isEmpty() ? 1 : 0;
+            if (fluidInput instanceof FluidStack stack && !stack.isEmpty()) fluid(stack, Direction.INPUT, "fluidIn()");
+            if (reagent instanceof Ingredient ingredient) collect(ingredient, Direction.INPUT, "reagent()", 0);
+            Object fluidResults = readDeclaredField(recipe, "results");
+            int outputCount = collectFluidStacks(fluidResults, Direction.OUTPUT, "results()");
+            Object byproduct = readDeclaredField(recipe, "byproduct");
+            Object byproductStack = byproduct instanceof java.util.Optional<?> optional ? optional.orElse(null) : null;
+            if (byproductStack instanceof ItemStack stack && !stack.isEmpty()) item(stack, Direction.OUTPUT, "byproduct()");
+            if (inputCount == 0 || !(reagent instanceof Ingredient) || !(fluidResults instanceof List<?>)) {
+                incomplete("fluidIn()+reagent()+results()");
+            }
+            if (outputCount == 0 && !(byproductStack instanceof ItemStack stack && !stack.isEmpty())) incomplete("results()+byproduct()");
+            requirement("consumer_machine", "irons_spellbooks:alchemist_cauldron", "BrewAlchemistCauldronRecipe");
+        }
+
+        private void twilightUncrafting(Object recipe) {
+            Object input = invokeNoArg(recipe, "input");
+            if (input instanceof Ingredient ingredient) collect(ingredient, Direction.INPUT, "input()", 0);
+            else incomplete("input()");
+            Object results = invokeNoArg(recipe, "resultItems");
+            JsonArray slots = new JsonArray();
+            if (results instanceof List<?> values) {
+                for (int index = 0; index < values.size(); index++) {
+                    Object value = values.get(index);
+                    JsonElement ingredient = value instanceof Ingredient item ? item.toJson() : null;
+                    if (ingredient == null) incomplete("resultItems()[" + index + "]");
+                    else slots.add(ingredient);
+                }
+            } else incomplete("resultItems()");
+            JsonObject effect = effect("emit_uncrafting_ingredient_grid", "resultItems()");
+            effect.add("result_slots", slots);
+            addNumber(effect, "experience_cost", invokeNoArg(recipe, "cost"));
+            addNumber(effect, "input_count", invokeNoArg(recipe, "count"));
+            addNumber(effect, "width", invokeNoArg(recipe, "width"));
+            addNumber(effect, "height", invokeNoArg(recipe, "height"));
+        }
+
+        private void ae2Entropy(Object recipe) {
+            Object mode = invokeNoArg(recipe, "getMode");
+            Object inputBlock = invokeNoArg(recipe, "getInputBlock");
+            Object inputFluid = invokeNoArg(recipe, "getInputFluid");
+            Object outputBlock = invokeNoArg(recipe, "getOutputBlock");
+            Object outputFluid = invokeNoArg(recipe, "getOutputFluid");
+            if (inputBlock instanceof Block block) resource("block", BuiltInRegistries.BLOCK.getKey(block), Direction.INPUT, "getInputBlock()");
+            if (inputFluid instanceof net.minecraft.world.level.material.Fluid fluidValue) {
+                resource("fluid", ForgeRegistries.FLUIDS.getKey(fluidValue), Direction.INPUT, "getInputFluid()");
+            }
+            if (outputBlock instanceof Block block) resource("block", BuiltInRegistries.BLOCK.getKey(block), Direction.OUTPUT, "getOutputBlock()");
+            if (outputFluid instanceof net.minecraft.world.level.material.Fluid fluidValue) {
+                resource("fluid", ForgeRegistries.FLUIDS.getKey(fluidValue), Direction.OUTPUT, "getOutputFluid()");
+            }
+            collect(invokeNoArg(recipe, "getDrops"), Direction.OUTPUT, "getDrops()", 0);
+            JsonObject effect = effect("apply_ae2_entropy_world_state", "EntropyRecipe");
+            if (mode != null) effect.addProperty("mode", String.valueOf(mode)); else incomplete("getMode()");
+            Object keepBlock = invokeNoArg(recipe, "getOutputBlockKeep");
+            Object keepFluid = invokeNoArg(recipe, "getOutputFluidKeep");
+            if (keepBlock instanceof Boolean value) effect.addProperty("keep_input_block", value);
+            if (keepFluid instanceof Boolean value) effect.addProperty("keep_input_fluid", value);
+            effect.addProperty("state_matchers_and_appliers", "serializer_payload");
+        }
+
+        private void arsDispelEntity(Object recipe) {
+            Object entity = invokeNoArg(recipe, "entity");
+            Object lootTable = invokeNoArg(recipe, "lootTable");
+            if (entity instanceof EntityType<?> entityType) {
+                resource("entity_type", BuiltInRegistries.ENTITY_TYPE.getKey(entityType), Direction.INPUT, "entity()");
+            } else incomplete("entity()");
+            JsonObject effect = effect("roll_loot_when_entity_is_dispelled", "result()");
+            if (lootTable instanceof ResourceLocation id) effect.addProperty("loot_table", id.toString());
+            else incomplete("lootTable()");
+            JsonElement definition = serializeOptional(recipe);
+            if (definition != null) effect.add("recipe_definition", definition); else incomplete("asRecipe()");
+        }
+
+        private void arsReactiveEnchantment(Object recipe) {
+            collectField(recipe, "pedestalItems", Direction.INPUT);
+            collectField(recipe, "reagent", Direction.INPUT);
+            Object enchantment = readDeclaredField(recipe, "enchantment");
+            if (enchantment instanceof Enchantment value) resource("enchantment", BuiltInRegistries.ENCHANTMENT.getKey(value), Direction.OUTPUT, "enchantment");
+            else incomplete("enchantment");
+            JsonObject effect = effect("apply_reactive_enchantment", "getResult()");
+            addNumber(effect, "level", readDeclaredField(recipe, "enchantLevel"));
+            effect.addProperty("output_source", "mutable_apparatus_reagent");
+            JsonElement definition = serializeOptional(recipe);
+            if (definition != null) effect.add("recipe_definition", definition); else incomplete("asRecipe()");
+        }
+
+        private void arsSpellWrite(Object recipe) {
+            collectField(recipe, "pedestalItems", Direction.INPUT);
+            collectField(recipe, "reagent", Direction.INPUT);
+            JsonElement definition = serializeOptional(recipe);
+            if (definition == null) incomplete("asRecipe()");
+            JsonObject effect = effect("write_player_selected_spell_to_reagent", "getResult()");
+            if (definition != null) effect.add("recipe_definition", definition);
+            effect.addProperty("spell_source", "runtime_apparatus_player_context");
+            effect.addProperty("output_source", "mutable_apparatus_reagent");
+        }
+
+        private void arsSummonRitual(Object recipe) {
+            Object catalyst = readDeclaredField(recipe, "catalyst");
+            if (catalyst instanceof Ingredient ingredient) collect(ingredient, Direction.INPUT, "catalyst", 0);
+            else incomplete("catalyst");
+            JsonElement definition = serializeOptional(recipe);
+            if (definition == null) incomplete("asRecipe()");
+            JsonObject effect = effect("summon_weighted_entities", "SummonRitualRecipe");
+            if (definition != null) effect.add("recipe_definition", definition);
+            Object source = readDeclaredField(recipe, "mobSource");
+            if (source != null) effect.addProperty("mob_source", String.valueOf(source)); else incomplete("mobSource");
+            addNumber(effect, "count", readDeclaredField(recipe, "count"));
+        }
+
+        private void createSplashing(Object recipe) {
+            JsonObject definition = invokeJsonWriter(recipe, "writeAdditional");
+            if (definition == null) incomplete("writeAdditional(JsonObject)");
+            JsonObject effect = effect("perform_create_fan_splashing", "writeAdditional(JsonObject)");
+            if (definition != null) effect.add("processing_definition", definition);
+            effect.addProperty("output_source", "create_processing_results_or_intentional_consumption");
+            requirement("consumer_machine", "create:fan_splashing", "SplashingRecipe");
+        }
+
         private void collectSizedIngredients(Object value, String path) {
             if (!(value instanceof Collection<?> values)) {
                 incomplete(path);
@@ -1024,6 +1353,23 @@ final class SemanticRecipeAdapter {
                 try {
                     method.trySetAccessible();
                     return method.invoke(root, argument);
+                } catch (Throwable ignored) {
+                    // Try another overload with the same stable method name.
+                }
+            }
+            return null;
+        }
+
+        private static JsonObject invokeJsonWriter(Object root, String name) {
+            if (root == null) return null;
+            for (Method method : publicMethods(root.getClass())) {
+                if (!method.getName().equals(name) || method.getParameterCount() != 1
+                        || !method.getParameterTypes()[0].isAssignableFrom(JsonObject.class)) continue;
+                try {
+                    method.trySetAccessible();
+                    JsonObject target = new JsonObject();
+                    method.invoke(root, target);
+                    return target;
                 } catch (Throwable ignored) {
                     // Try another overload with the same stable method name.
                 }

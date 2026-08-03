@@ -139,6 +139,16 @@ final class RecipeGraphExporterTest {
                 "org.valkyrienskies.clockwork.content.logistics.gas.crafter.GasCraftingRecipe"));
         assertEquals("tool_modifier_set_mutation", SemanticRecipeAdapter.operationKind(
                 "slimeknights.tconstruct.library.recipe.worktable.ModifierSetWorktableRecipe"));
+        assertEquals("dynamic_item_state_crafting", SemanticRecipeAdapter.operationKind(
+                "net.mehvahdjukaar.supplementaries.common.items.crafting.WeatheredMapRecipe"));
+        assertEquals("item_disassembly", SemanticRecipeAdapter.operationKind(
+                "twilightforest.item.recipe.UncraftingRecipe"));
+        assertEquals("fluid_brewing", SemanticRecipeAdapter.operationKind(
+                "io.redspace.ironsspellbooks.recipe_types.alchemist_cauldron.BrewAlchemistCauldronRecipe"));
+        assertEquals("world_state_transform", SemanticRecipeAdapter.operationKind(
+                "appeng.recipes.entropy.EntropyRecipe"));
+        assertEquals("fan_splashing", SemanticRecipeAdapter.operationKind(
+                "com.simibubi.create.content.kinetics.fan.processing.SplashingRecipe"));
     }
 
     @Test

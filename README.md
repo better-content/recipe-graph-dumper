@@ -38,7 +38,10 @@ profiles, and modifier application/removal likewise remain distinct from
 ordinary static item transforms. Clockwork gas crafting retains exact gas-mass
 maps, reaction requirements, and energy, while TConstruct part swapping and
 modifier-set worktable recipes retain their live tool predicates and runtime
-mutation semantics.
+mutation semantics. Modded state-copy, dye, binding, repair, and container
+recipes use the same runtime-selector model. Fluid brewing, uncrafting result
+grids, entity/ritual effects, entropy world-state changes, and intentional
+outputless processing are represented as their own typed operations.
 
 The command is intentionally the only trigger. The mod performs no work during
 startup, reload, or player synchronization.

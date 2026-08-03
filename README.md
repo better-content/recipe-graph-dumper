@@ -32,7 +32,10 @@ Malum spirit repairs, PneumaticCraft heat/fuel properties, Ars scry mappings,
 Blood Magic living-armour mutations, and Goety brewing/soul operations.
 AlmostUnified client recipe trackers are explicit non-gameplay metadata
 exclusions carrying their exact linked recipe flags, never fabricated crafting
-edges.
+edges. Dynamic special crafting is represented by typed runtime selectors and
+copy/mutation effects; placement policies, meteor world effects, smeltery fuel
+profiles, and modifier application/removal likewise remain distinct from
+ordinary static item transforms.
 
 The command is intentionally the only trigger. The mod performs no work during
 startup, reload, or player synchronization.

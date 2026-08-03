@@ -113,6 +113,20 @@ final class RecipeGraphExporterTest {
                 "com.Polarice3.Goety.common.crafting.BrewingRecipe"));
         assertEquals("soul_absorption", SemanticRecipeAdapter.operationKind(
                 "com.Polarice3.Goety.common.crafting.SoulAbsorberRecipes"));
+        assertEquals("dynamic_item_state_crafting", SemanticRecipeAdapter.operationKind(
+                "net.minecraft.world.item.crafting.ArmorDyeRecipe"));
+        assertEquals("tool_overslime_restoration", SemanticRecipeAdapter.operationKind(
+                "slimeknights.tconstruct.library.recipe.modifiers.adding.OverslimeCraftingTableRecipe"));
+        assertEquals("tool_modifier_extraction", SemanticRecipeAdapter.operationKind(
+                "slimeknights.tconstruct.tools.recipe.ExtractModifierRecipe"));
+        assertEquals("ritual_meteor_world_effect", SemanticRecipeAdapter.operationKind(
+                "wayoftime.bloodmagic.recipe.RecipeMeteor"));
+        assertEquals("placement_policy_metadata", SemanticRecipeAdapter.operationKind(
+                "com.aetherteam.aether.recipe.recipes.ban.BlockBanRecipe"));
+        assertEquals("item_modifier_application", SemanticRecipeAdapter.operationKind(
+                "com.stal111.forbidden_arcanus.common.recipe.ApplyModifierRecipe"));
+        assertEquals("armor_tier_upgrade", SemanticRecipeAdapter.operationKind(
+                "com.hollingsworth.arsnouveau.api.enchanting_apparatus.ArmorUpgradeRecipe"));
     }
 
     @Test

@@ -13,7 +13,7 @@ Command-driven export of the final live server recipe graph and registry evidenc
 '''
 
 [[mixins]]
-config="bcrecipegraph.mixins.json"
+config="runtime_data_dumper.mixins.json"
 
 [[dependencies.${mod_id}]]
 modId="forge"

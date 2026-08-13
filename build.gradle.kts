@@ -8,7 +8,7 @@ group = property("mod_group_id") as String
 version = property("mod_version") as String
 
 base {
-    archivesName.set(property("mod_id") as String)
+    archivesName.set("runtime-data-dumper")
 }
 
 java {
@@ -59,7 +59,7 @@ tasks.processResources {
 
 tasks.named<Jar>("jar") {
     manifest {
-        attributes["MixinConfigs"] = "bcrecipegraph.mixins.json"
+        attributes["MixinConfigs"] = "runtime_data_dumper.mixins.json"
     }
     finalizedBy("reobfJar")
 }

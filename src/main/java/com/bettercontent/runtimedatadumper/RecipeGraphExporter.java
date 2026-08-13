@@ -1,4 +1,4 @@
-package com.bettercontent.recipegraph;
+package com.bettercontent.runtimedatadumper;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -539,7 +539,7 @@ public final class RecipeGraphExporter {
         out.addProperty("minecraft", SharedConstants.getCurrentVersion().getName());
         out.addProperty("forge", FMLLoader.versionInfo().forgeVersion());
         out.addProperty("loader", "forge");
-        out.addProperty("generated_by", RecipeGraphMod.MOD_ID + ":/bcgraph dump");
+        out.addProperty("generated_by", RecipeGraphMod.MOD_ID + ":/runtimedata dump");
         return out;
     }
 

@@ -5,4 +5,4 @@ pluginManagement {
     }
 }
 
-rootProject.name = "recipe-graph-dumper"
+rootProject.name = "runtime-data-dumper"

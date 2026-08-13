@@ -1,7 +1,7 @@
-# Better Content Recipe Graph
+# Runtime Data Dumper
 
 Server-authoritative Forge 1.20.1 diagnostic mod. An operator can run
-`/bcgraph dump` to export the final live recipe manager, registries, tags,
+`/runtimedata dump` to export the final live recipe manager, registries, tags,
 effective loot tables, sampled effective villager offers, worldgen registries,
 and mod list under `generated/runtime-dumps/` in the server directory. Every
 file shares one snapshot ID so offline tooling can reject mixed evidence.
@@ -51,3 +51,12 @@ Build and test the reobfuscated runtime JAR with:
 ```sh
 ./gradlew clean test reobfJar
 ```
+
+## Canonical identity
+
+- Repository and release artifact: `runtime-data-dumper`
+- Mod ID and resource namespace: `runtime_data_dumper`
+- Java package: `com.bettercontent.runtimedatadumper`
+- Validation: `./gradlew build`
+
+This normalization is a clean break. Worlds, configuration files, and integrations created for earlier identities are not migrated or aliased.

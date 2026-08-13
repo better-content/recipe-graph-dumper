@@ -1,4 +1,4 @@
-package com.bettercontent.recipegraph.mixin;
+package com.bettercontent.runtimedatadumper.mixin;
 
 import com.google.gson.JsonObject;
 import org.spongepowered.asm.mixin.Mixin;
@@ -22,7 +22,7 @@ abstract class SpellFilterMixin {
             require = 1,
             remap = false
     )
-    private boolean bcrecipegraph$gsonCompatibleIsEmpty(JsonObject object) {
+    private boolean runtime_data_dumper$gsonCompatibleIsEmpty(JsonObject object) {
         return object.entrySet().isEmpty();
     }
 }

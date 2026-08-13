@@ -1,4 +1,4 @@
-package com.bettercontent.recipegraph;
+package com.bettercontent.runtimedatadumper;
 
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
@@ -10,7 +10,7 @@ public final class RecipeGraphCommands {
 
     @SubscribeEvent
     public static void register(RegisterCommandsEvent event) {
-        event.getDispatcher().register(Commands.literal("bcgraph")
+        event.getDispatcher().register(Commands.literal("runtimedata")
                 .requires(source -> source.hasPermission(2))
                 .then(Commands.literal("dump").executes(context -> {
                     var result = RecipeGraphExporter.dump(context.getSource().getServer());

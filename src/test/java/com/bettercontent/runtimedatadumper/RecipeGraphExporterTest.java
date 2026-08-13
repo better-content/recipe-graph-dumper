@@ -1,4 +1,4 @@
-package com.bettercontent.recipegraph;
+package com.bettercontent.runtimedatadumper;
 
 import com.google.gson.JsonParser;
 import com.google.gson.JsonObject;

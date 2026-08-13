@@ -1,4 +1,4 @@
-package com.bettercontent.recipegraph;
+package com.bettercontent.runtimedatadumper;
 
 public record DumpResult(
         boolean success,

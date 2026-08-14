@@ -3,9 +3,12 @@ package com.bettercontent.runtimedatadumper;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonArray;
+import net.minecraft.resources.ResourceLocation;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
+import java.util.LinkedHashMap;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -156,5 +159,80 @@ final class RecipeGraphExporterTest {
         JsonArray effects = JsonParser.parseString("[{\"kind\":\"add_tool_damage\",\"damage\":5}]").getAsJsonArray();
         assertTrue(RecipeGraphExporter.hasNavigableOutcome(new JsonArray(), new JsonArray(), effects));
         assertFalse(RecipeGraphExporter.hasNavigableOutcome(new JsonArray(), new JsonArray(), new JsonArray()));
+    }
+
+    @Test
+    void lightingStatePropertiesAreSerializedDeterministically() {
+        LinkedHashMap<String, String> unsorted = new LinkedHashMap<>();
+        unsorted.put("waterlogged", "false");
+        unsorted.put("lit", "true");
+        JsonObject properties = LightingExporter.propertiesJson(unsorted);
+        assertEquals(List.of("lit", "waterlogged"), properties.keySet().stream().toList());
+    }
+
+    @Test
+    void portableLightingAcceptsFixedAndBlockDerivedLuminance() {
+        LightingExporter.DefinitionResult fixed = LightingExporter.classifyDefinition(
+                "test:fixed", "test.jar",
+                JsonParser.parseString("{\"item\":\"minecraft:blaze_rod\",\"luminance\":10,\"water_sensitive\":true}").getAsJsonObject(),
+                id -> id.equals(ResourceLocation.tryParse("minecraft:blaze_rod")) ? new LightingExporter.ResolvedItem(true, null, 0) : null,
+                ignored -> null);
+        assertTrue(fixed.accepted());
+        assertEquals("fixed", fixed.row().get("luminance_mode").getAsString());
+        assertEquals(10, fixed.row().get("light_level").getAsInt());
+        assertTrue(fixed.row().get("water_sensitive").getAsBoolean());
+
+        LightingExporter.DefinitionResult block = LightingExporter.classifyDefinition(
+                "test:block", "test.jar",
+                JsonParser.parseString("{\"item\":\"minecraft:torch\",\"luminance\":\"block\"}").getAsJsonObject(),
+                id -> id.equals(ResourceLocation.tryParse("minecraft:torch")) ? new LightingExporter.ResolvedItem(true, "minecraft:torch", 14) : null,
+                ignored -> null);
+        assertTrue(block.accepted());
+        assertEquals("item_block_default_state", block.row().get("luminance_mode").getAsString());
+        assertEquals(14, block.row().get("light_level").getAsInt());
+    }
+
+    @Test
+    void portableLightingSupportsReferencedBlocksAndRejectsInactiveCompatibility() {
+        LightingExporter.DefinitionResult referenced = LightingExporter.classifyDefinition(
+                "test:lava", "test.jar",
+                JsonParser.parseString("{\"item\":\"minecraft:bucket\",\"luminance\":\"minecraft:lava\"}").getAsJsonObject(),
+                id -> id.equals(ResourceLocation.tryParse("minecraft:bucket")) ? new LightingExporter.ResolvedItem(true, null, 0) : null,
+                id -> id.equals(ResourceLocation.tryParse("minecraft:lava")) ? new LightingExporter.ResolvedBlock(true, "minecraft:lava", 15) : null);
+        assertTrue(referenced.accepted());
+        assertEquals("minecraft:lava", referenced.row().get("luminance_block").getAsString());
+        assertEquals(15, referenced.row().get("light_level").getAsInt());
+
+        LightingExporter.DefinitionResult missing = LightingExporter.classifyDefinition(
+                "compat:lamp", "compat.jar",
+                JsonParser.parseString("{\"item\":\"absent:lamp\",\"luminance\":15}").getAsJsonObject(),
+                ignored -> null,
+                ignored -> null);
+        assertFalse(missing.accepted());
+        assertEquals("missing_item", missing.row().get("reason").getAsString());
+
+        LightingExporter.DefinitionResult unsupported = LightingExporter.classifyDefinition(
+                "compat:tag", "compat.jar",
+                JsonParser.parseString("{\"match\":{\"items\":\"#compat:lamps\"},\"luminance\":8}").getAsJsonObject(),
+                ignored -> null,
+                ignored -> null);
+        assertFalse(unsupported.accepted());
+        assertEquals("unsupported_schema", unsupported.row().get("reason").getAsString());
+    }
+
+    @Test
+    void atlasFingerprintIsDeterministicAndOrderSensitive() throws Exception {
+        String first = AtlasManifestSupport.fingerprint(List.of("registry\0minecraft:apple", "registry\0minecraft:stick"));
+        assertEquals(first, AtlasManifestSupport.fingerprint(List.of("registry\0minecraft:apple", "registry\0minecraft:stick")));
+        assertNotEquals(first, AtlasManifestSupport.fingerprint(List.of("registry\0minecraft:stick", "registry\0minecraft:apple")));
+    }
+
+    @Test
+    void atlasManifestDeclaresStableContract() {
+        JsonObject manifest = AtlasManifestSupport.base("snapshot", "fingerprint", 42);
+        assertEquals("bc.quest_icon_atlas.v1", manifest.get("schema").getAsString());
+        assertEquals(64, manifest.get("tile_size").getAsInt());
+        assertEquals(2048, manifest.get("page_size").getAsInt());
+        assertEquals(42, manifest.get("planned_entry_count").getAsInt());
     }
 }

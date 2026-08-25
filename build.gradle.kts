@@ -63,9 +63,6 @@ tasks.processResources {
 }
 
 tasks.named<Jar>("jar") {
-    manifest {
-        attributes["MixinConfigs"] = "runtime_data_dumper.mixins.json"
-    }
     finalizedBy("reobfJar")
 }
 

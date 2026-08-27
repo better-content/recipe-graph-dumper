@@ -12,9 +12,6 @@ description='''
 Command-driven export of the final live server recipe graph and registry evidence.
 '''
 
-[[mixins]]
-config="runtime_data_dumper.mixins.json"
-
 [[dependencies.${mod_id}]]
 modId="forge"
 mandatory=true

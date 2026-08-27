@@ -29,6 +29,18 @@ public final class RecipeGraphCommands {
                     }
                     context.getSource().sendFailure(Component.literal("Recipe graph dump failed: " + result.message()));
                     return 0;
+                }))
+                .then(Commands.literal("combat").executes(context -> {
+                    var result = CombatProfileExporter.dump(context.getSource().getServer());
+                    if (result.success()) {
+                        context.getSource().sendSuccess(() -> Component.literal(
+                                "Combat profile: " + result.sampledEntities() + " hostile samples, "
+                                        + result.excludedBosses() + " boss exclusions, " + result.errors()
+                                        + " sampling issues -> " + result.output()), true);
+                        return 1;
+                    }
+                    context.getSource().sendFailure(Component.literal("Combat profile dump failed: " + result.message()));
+                    return 0;
                 })));
     }
 }

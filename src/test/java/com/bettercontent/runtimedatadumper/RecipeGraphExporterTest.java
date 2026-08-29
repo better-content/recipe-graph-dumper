@@ -36,6 +36,18 @@ final class RecipeGraphExporterTest {
     }
 
     @Test
+    void worldDependentMapTradesAreDeferredBeforeTheirFactoriesRun() {
+        assertTrue(RuntimeEvidenceExporter.isWorldDependentTradeListing(
+                "com.bettercontent.dimensiondrink.trade.DimensionalFontMapListing"));
+        assertTrue(RuntimeEvidenceExporter.isWorldDependentTradeListing(
+                "net.minecraft.world.entity.npc.VillagerTrades$TreasureMapForEmeralds"));
+        assertFalse(RuntimeEvidenceExporter.isWorldDependentTradeListing(
+                "net.minecraft.world.entity.npc.VillagerTrades$ItemsForEmeralds"));
+        assertFalse(RuntimeEvidenceExporter.isWorldDependentTradeListing(
+                "example.SafeItemListing"));
+    }
+
+    @Test
     void serializedIngredientCountsSurviveNormalization() {
         assertEquals(4, RecipeGraphExporter.ingredientCount(
                 JsonParser.parseString("{\"tag\":\"forge:ingots/iron\",\"count\":4}"), null));
@@ -98,6 +110,12 @@ final class RecipeGraphExporterTest {
                 "slimeknights.tconstruct.tables.recipe.PartBuilderToolRecycle"));
         assertEquals("tool_state_mutation", SemanticRecipeAdapter.operationKind(
                 "slimeknights.tconstruct.tables.recipe.TinkerStationDamagingRecipe"));
+        assertEquals("effect_provider_metadata", SemanticRecipeAdapter.operationKind(
+                "net.mehvahdjukaar.jeed.recipes.EffectProviderRecipe"));
+        assertEquals("bee_temperature_tolerance_modifier", SemanticRecipeAdapter.operationKind(
+                "com.accbdd.complicated_bees.recipe.TempUnitRecipe"));
+        assertEquals("spellbook_tier_upgrade", SemanticRecipeAdapter.operationKind(
+                "alexthw.ars_elemental.recipe.NetheriteUpgradeRecipe"));
         assertEquals("matter_cannon_ammo_metadata", SemanticRecipeAdapter.operationKind(
                 "appeng.recipes.mattercannon.MatterCannonAmmo"));
         assertEquals("non_gameplay_client_recipe_metadata", SemanticRecipeAdapter.operationKind(

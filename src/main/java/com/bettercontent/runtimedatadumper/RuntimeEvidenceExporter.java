@@ -39,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.lang.reflect.Method;
 
@@ -77,6 +78,7 @@ final class RuntimeEvidenceExporter {
         JsonObject out = new JsonObject();
         JsonArray villagers = new JsonArray();
         JsonArray wanderer = new JsonArray();
+        JsonArray deferred = new JsonArray();
         JsonArray issues = new JsonArray();
         TradeCounters counters = new TradeCounters();
 
@@ -86,7 +88,7 @@ final class RuntimeEvidenceExporter {
         } else {
             VillagerTrades.TRADES.entrySet().stream()
                     .sorted(Comparator.comparing(entry -> registryId(BuiltInRegistries.VILLAGER_PROFESSION, entry.getKey())))
-                    .forEach(entry -> exportProfession(entry.getKey(), entry.getValue(), entity, villagers, issues, counters));
+                    .forEach(entry -> exportProfession(entry.getKey(), entry.getValue(), entity, villagers, deferred, issues, counters));
             entity.discard();
         }
 
@@ -98,7 +100,7 @@ final class RuntimeEvidenceExporter {
                     .sorted(Comparator.comparingInt(it -> it.getIntKey()))
                     .forEach(entry -> exportListings(
                             "minecraft:wandering_trader", "minecraft:wandering_trader", entry.getIntKey(),
-                            entry.getValue(), wanderingEntity, wanderer, issues, counters));
+                            entry.getValue(), wanderingEntity, wanderer, deferred, issues, counters));
             wanderingEntity.discard();
         }
 
@@ -109,12 +111,14 @@ final class RuntimeEvidenceExporter {
         out.addProperty("listing_context_count", counters.listingContexts);
         out.addProperty("sample_attempt_count", counters.sampleAttempts);
         out.addProperty("null_offer_count", counters.nullOffers);
-        out.addProperty("limitation", "Representative offers are sampled from live listing functions; this is not an exhaustive enumeration of randomized or state-dependent offers.");
+        out.addProperty("deferred_listing_count", deferred.size());
+        out.addProperty("limitation", "Representative offers are sampled from live local listing functions; world-dependent map listings are recorded but not executed because they may synchronously locate structures or generate chunks.");
         out.addProperty("villager_offer_count", villagers.size());
         out.addProperty("wandering_offer_count", wanderer.size());
         out.addProperty("error_count", issues.size());
         out.add("villager_offers", villagers);
         out.add("wandering_offers", wanderer);
+        out.add("deferred_listings", deferred);
         out.add("issues", issues);
         return out;
     }
@@ -124,6 +128,7 @@ final class RuntimeEvidenceExporter {
             it.unimi.dsi.fastutil.ints.Int2ObjectMap<VillagerTrades.ItemListing[]> levels,
             Villager entity,
             JsonArray output,
+            JsonArray deferred,
             JsonArray issues,
             TradeCounters counters
     ) {
@@ -135,7 +140,7 @@ final class RuntimeEvidenceExporter {
             for (VillagerType type : types) {
                 String typeId = registryId(BuiltInRegistries.VILLAGER_TYPE, type);
                 entity.setVillagerData(new VillagerData(type, profession, level.getIntKey()));
-                exportListings(professionId, typeId, level.getIntKey(), level.getValue(), entity, output, issues, counters);
+                exportListings(professionId, typeId, level.getIntKey(), level.getValue(), entity, output, deferred, issues, counters);
             }
         });
     }
@@ -147,12 +152,17 @@ final class RuntimeEvidenceExporter {
             VillagerTrades.ItemListing[] listings,
             Entity entity,
             JsonArray output,
+            JsonArray deferred,
             JsonArray issues,
             TradeCounters counters
     ) {
         for (int listingIndex = 0; listingIndex < listings.length; listingIndex++) {
             counters.listingContexts++;
             VillagerTrades.ItemListing listing = listings[listingIndex];
+            if (isWorldDependentTradeListing(listing.getClass().getName())) {
+                deferred.add(deferredListing(profession, villagerType, level, listingIndex, listing));
+                continue;
+            }
             Map<String, JsonObject> distinct = new LinkedHashMap<>();
             for (int sample = 0; sample < TRADE_SAMPLE_COUNT; sample++) {
                 counters.sampleAttempts++;
@@ -172,6 +182,33 @@ final class RuntimeEvidenceExporter {
             }
             distinct.values().forEach(output::add);
         }
+    }
+
+    static boolean isWorldDependentTradeListing(String className) {
+        String normalized = className.toLowerCase(Locale.ROOT);
+        return normalized.contains("map") && (
+                normalized.contains("listing")
+                        || normalized.contains("trade")
+                        || normalized.contains("offer")
+                        || normalized.contains("treasure")
+        );
+    }
+
+    private static JsonObject deferredListing(
+            String profession,
+            String villagerType,
+            int level,
+            int listingIndex,
+            VillagerTrades.ItemListing listing
+    ) {
+        JsonObject row = new JsonObject();
+        row.addProperty("profession", profession);
+        row.addProperty("villager_type", villagerType);
+        row.addProperty("level", level);
+        row.addProperty("listing_index", listingIndex);
+        row.addProperty("listing_class", listing.getClass().getName());
+        row.addProperty("reason", "world_dependent_map_generation");
+        return row;
     }
 
     private static JsonObject offerJson(

@@ -137,6 +137,12 @@ final class SemanticRecipeAdapter {
             case "com.hollingsworth.arsnouveau.api.enchanting_apparatus.SpellWriteRecipe" -> "spell_state_write";
             case "com.hollingsworth.arsnouveau.api.recipe.SummonRitualRecipe" -> "ritual_entity_summoning";
             case "com.simibubi.create.content.kinetics.fan.processing.SplashingRecipe" -> "fan_splashing";
+            case "net.mehvahdjukaar.jeed.recipes.EffectProviderRecipe" -> "effect_provider_metadata";
+            case "net.mehvahdjukaar.jeed.recipes.PotionProviderRecipe" -> "potion_provider_metadata";
+            case "com.accbdd.complicated_bees.recipe.TempUnitRecipe" -> "bee_temperature_tolerance_modifier";
+            case "com.accbdd.complicated_bees.recipe.MutatorRecipe" -> "bee_mutation_chance_modifier";
+            case "com.accbdd.complicated_bees.recipe.HoneyGeneratorRecipe" -> "honey_generator_fuel";
+            case "alexthw.ars_elemental.recipe.NetheriteUpgradeRecipe" -> "spellbook_tier_upgrade";
             default -> null;
         };
     }
@@ -209,6 +215,9 @@ final class SemanticRecipeAdapter {
                  "com.klikli_dev.occultism.crafting.recipe.BoundBookOfBindingRecipe",
                  "com.endertech.minecraft.mods.adpother.recipes.FilterChangeRecipe",
                  "com.aetherteam.aether.recipe.recipes.item.SwetBannerRecipe",
+                 "com.bettercontent.realisticores.compat.ExcavatedSeparationRecipe",
+                 "com.bettercontent.realisticores.compat.ExcavatedReassemblyRecipe",
+                 "com.bettercontent.proceduralbouquets.recipe.PottedBouquetRecipe",
                  "appeng.recipes.game.FacadeRecipe" -> true;
             default -> false;
         };
@@ -407,6 +416,18 @@ final class SemanticRecipeAdapter {
                 arsSummonRitual(recipe);
             } else if (className.equals("com.simibubi.create.content.kinetics.fan.processing.SplashingRecipe")) {
                 createSplashing(recipe);
+            } else if (className.equals("net.mehvahdjukaar.jeed.recipes.EffectProviderRecipe")) {
+                jeedEffectProvider(recipe);
+            } else if (className.equals("net.mehvahdjukaar.jeed.recipes.PotionProviderRecipe")) {
+                jeedPotionProvider(recipe);
+            } else if (className.equals("com.accbdd.complicated_bees.recipe.TempUnitRecipe")) {
+                complicatedBeesTemperature(recipe);
+            } else if (className.equals("com.accbdd.complicated_bees.recipe.MutatorRecipe")) {
+                complicatedBeesMutator(recipe);
+            } else if (className.equals("com.accbdd.complicated_bees.recipe.HoneyGeneratorRecipe")) {
+                complicatedBeesHoneyFuel(recipe);
+            } else if (className.equals("alexthw.ars_elemental.recipe.NetheriteUpgradeRecipe")) {
+                arsElementalNetheriteUpgrade(recipe);
             } else if (className.equals("slimeknights.tconstruct.library.recipe.material.MaterialRecipe")) {
                 collectAccessor(recipe, "getMaterial", Direction.OUTPUT);
             } else if (className.equals("slimeknights.tconstruct.library.recipe.modifiers.ModifierSalvage")) {
@@ -913,6 +934,12 @@ final class SemanticRecipeAdapter {
                         "change_air_filter_material_preserving_state", "air_filter", "filter_material");
                 case "com.aetherteam.aether.recipe.recipes.item.SwetBannerRecipe" -> dynamicCrafting(
                         "apply_swet_pattern_to_banner", "banner", "swet_ball");
+                case "com.bettercontent.realisticores.compat.ExcavatedSeparationRecipe" -> dynamicCrafting(
+                        "separate_excavated_ore_into_chunk_and_substrate", "single_excavated_ore_variant");
+                case "com.bettercontent.realisticores.compat.ExcavatedReassemblyRecipe" -> dynamicCrafting(
+                        "reassemble_excavated_ore_from_chunk_and_substrate", "matching_ore_chunk", "compatible_substrate");
+                case "com.bettercontent.proceduralbouquets.recipe.PottedBouquetRecipe" -> dynamicCrafting(
+                        "pot_bouquet_preserving_flower_composition", "configured_bouquet", "flower_pot");
                 case "appeng.recipes.game.FacadeRecipe" -> dynamicCrafting(
                         "encode_block_state_into_ae2_facade", "ae2_facade_blank", "facade_block_item");
                 default -> incomplete(className);
@@ -1305,6 +1332,70 @@ final class SemanticRecipeAdapter {
             if (definition != null) effect.add("processing_definition", definition);
             effect.addProperty("output_source", "create_processing_results_or_intentional_consumption");
             requirement("consumer_machine", "create:fan_splashing", "SplashingRecipe");
+        }
+
+        private void jeedEffectProvider(Object recipe) {
+            Object target = readDeclaredField(recipe, "effect");
+            JsonObject row = effect("register_effect_provider_metadata", "effect+providers");
+            addMobEffectTarget(row, target);
+            if (!(target instanceof MobEffect)) incomplete("effect");
+            row.add("effect_provider_ids", mobEffectIds(readDeclaredField(recipe, "effectProviders")));
+            row.add("fluid_provider_ids", registryIds(readDeclaredField(recipe, "fluidProviders"), BuiltInRegistries.FLUID));
+            requirement("consumer_system", "jeed:effect_provider", "EffectProviderRecipe");
+        }
+
+        private void jeedPotionProvider(Object recipe) {
+            JsonArray potions = registryIds(invokeNoArg(recipe, "getPotions"), BuiltInRegistries.POTION);
+            JsonObject row = effect("register_potion_provider_metadata", "getPotions()+providers");
+            row.add("potion_ids", potions);
+            if (potions.isEmpty()) incomplete("getPotions()");
+            requirement("consumer_system", "jeed:potion_provider", "PotionProviderRecipe");
+        }
+
+        private void complicatedBeesTemperature(Object recipe) {
+            JsonObject row = effect("modify_bee_temperature_tolerance", "getTempChange()+getUseChance()");
+            Object change = invokeNoArg(recipe, "getTempChange");
+            Object chance = invokeNoArg(recipe, "getUseChance");
+            if (change != null) row.addProperty("tolerance_change", String.valueOf(change)); else incomplete("getTempChange()");
+            addNumber(row, "use_chance", chance);
+            if (!(chance instanceof Number)) incomplete("getUseChance()");
+            requirement("consumer_machine", "complicated_bees:temp_unit", "TempUnitRecipe");
+        }
+
+        private void complicatedBeesMutator(Object recipe) {
+            JsonObject row = effect("scale_bee_mutation_chance", "getMutationModifier()");
+            Object modifier = invokeNoArg(recipe, "getMutationModifier");
+            addNumber(row, "mutation_modifier", modifier);
+            if (!(modifier instanceof Number)) incomplete("getMutationModifier()");
+            requirement("consumer_machine", "complicated_bees:mutator", "MutatorRecipe");
+        }
+
+        private void complicatedBeesHoneyFuel(Object recipe) {
+            JsonObject row = effect("generate_energy_from_honey_fuel", "getBurnTime()");
+            Object burnTime = invokeNoArg(recipe, "getBurnTime");
+            addNumber(row, "burn_time", burnTime);
+            if (!(burnTime instanceof Number)) incomplete("getBurnTime()");
+            requirement("consumer_machine", "complicated_bees:honey_generator", "HoneyGeneratorRecipe");
+        }
+
+        private void arsElementalNetheriteUpgrade(Object recipe) {
+            collectDeclaredField(recipe, "pedestalItems", Direction.INPUT);
+            collectDeclaredField(recipe, "reagent", Direction.INPUT);
+            JsonObject row = effect("upgrade_spellbook_tier", "getResult()+asRecipe()");
+            row.addProperty("output_source", "mutable_apparatus_reagent");
+            JsonElement definition = serializeOptional(recipe);
+            if (definition != null) row.add("recipe_definition", definition); else incomplete("asRecipe()");
+            requirement("consumer_machine", "ars_nouveau:enchanting_apparatus", "NetheriteUpgradeRecipe");
+        }
+
+        @SuppressWarnings("unchecked")
+        private static <T> JsonArray registryIds(Object value, net.minecraft.core.Registry<T> registry) {
+            JsonArray ids = new JsonArray();
+            if (value instanceof Collection<?> entries) {
+                entries.stream().map(entry -> registry.getKey((T) entry))
+                        .filter(java.util.Objects::nonNull).map(ResourceLocation::toString).sorted().forEach(ids::add);
+            }
+            return ids;
         }
 
         private void collectSizedIngredients(Object value, String path) {

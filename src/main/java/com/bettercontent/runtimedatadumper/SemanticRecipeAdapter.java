@@ -218,6 +218,7 @@ final class SemanticRecipeAdapter {
                  "com.bettercontent.realisticores.compat.ExcavatedSeparationRecipe",
                  "com.bettercontent.realisticores.compat.ExcavatedReassemblyRecipe",
                  "com.bettercontent.proceduralbouquets.recipe.PottedBouquetRecipe",
+                 "com.github.alexthe666.rats.server.recipes.DemonRatSwitchRecipe",
                  "appeng.recipes.game.FacadeRecipe" -> true;
             default -> false;
         };
@@ -836,6 +837,8 @@ final class SemanticRecipeAdapter {
                         "copy_bloodmagic_filter_configuration", "configured_filter", "blank_compatible_filter");
                 case "wayoftime.bloodmagic.recipe.RecipeAnointmentApply" -> dynamicCrafting(
                         "apply_anointment_to_item", "anointment", "anointable_item");
+                case "com.github.alexthe666.rats.server.recipes.DemonRatSwitchRecipe" -> dynamicCrafting(
+                        "toggle_demon_rat_upgrade_soul_form", "rats:demon_rat_upgrade");
                 case "vectorwing.farmersdelight.common.crafting.FoodServingRecipe" -> dynamicCrafting(
                         "serve_food_into_container", "serving_container", "servable_food");
                 case "vectorwing.farmersdelight.common.crafting.DoughRecipe" -> dynamicCrafting(

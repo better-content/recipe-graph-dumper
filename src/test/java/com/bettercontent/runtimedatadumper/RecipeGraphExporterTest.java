@@ -162,6 +162,8 @@ final class RecipeGraphExporterTest {
                 "slimeknights.tconstruct.library.recipe.worktable.ModifierSetWorktableRecipe"));
         assertEquals("dynamic_item_state_crafting", SemanticRecipeAdapter.operationKind(
                 "net.mehvahdjukaar.supplementaries.common.items.crafting.WeatheredMapRecipe"));
+        assertEquals("dynamic_item_state_crafting", SemanticRecipeAdapter.operationKind(
+                "com.github.alexthe666.rats.server.recipes.DemonRatSwitchRecipe"));
         assertEquals("item_disassembly", SemanticRecipeAdapter.operationKind(
                 "twilightforest.item.recipe.UncraftingRecipe"));
         assertEquals("fluid_brewing", SemanticRecipeAdapter.operationKind(

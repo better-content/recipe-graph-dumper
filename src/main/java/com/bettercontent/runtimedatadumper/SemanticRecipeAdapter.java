@@ -199,6 +199,7 @@ final class SemanticRecipeAdapter {
                  "net.mehvahdjukaar.supplementaries.common.items.crafting.FlagFromBannerRecipe",
                  "net.mehvahdjukaar.supplementaries.common.items.crafting.BlackboardDuplicateRecipe",
                  "net.mehvahdjukaar.amendments.common.recipe.DyeBottleRecipe",
+                 "com.alrex.parcool.common.item.recipe.special.ZiplineRopeDyeRecipe",
                  "net.joefoxe.hexerei.data.recipes.WhistleBindRecipe",
                  "net.joefoxe.hexerei.data.recipes.KeychainUndoRecipe",
                  "net.joefoxe.hexerei.data.recipes.KeychainRecipe",
@@ -869,6 +870,8 @@ final class SemanticRecipeAdapter {
                         "assemble_clockwork_propeller_blade", "propeller_blade_components");
                 case "net.p3pp3rf1y.sophisticatedstorage.crafting.StorageDyeRecipe" -> dynamicCrafting(
                         "dye_sophisticated_storage_preserving_state", "sophisticated_storage", "dyes");
+                case "com.alrex.parcool.common.item.recipe.special.ZiplineRopeDyeRecipe" -> dynamicCrafting(
+                        "blend_zipline_rope_dye_color", "parcool:zipline_rope", "dye");
                 case "net.p3pp3rf1y.sophisticatedstorage.crafting.FlatTopBarrelToggleRecipe" -> dynamicCrafting(
                         "toggle_barrel_flat_top", "sophisticated_barrel");
                 case "net.p3pp3rf1y.sophisticatedstorage.crafting.BarrelMaterialRecipe" -> dynamicCrafting(

@@ -36,6 +36,7 @@ import net.minecraftforge.common.world.BiomeModifier;
 import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -255,6 +256,52 @@ final class RuntimeEvidenceExporter {
         out.addProperty("limitation", "Registry presence and codec state do not prove placement frequency, spatial distribution, biome attachment, or occurrence in an existing world.");
         out.add("issues", issues);
         return out;
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    static JsonObject dimensions(MinecraftServer server) {
+        JsonObject out = new JsonObject();
+        JsonArray issues = new JsonArray();
+        JsonArray loaded = sortedIds(server.levelKeys().stream()
+                .map(ResourceKey::location)
+                .toList());
+
+        ResourceLocation registryId = ResourceLocation.tryParse("creatingspace:rocket_accessible_dimension");
+        ResourceKey registryKey = ResourceKey.createRegistryKey(registryId);
+        JsonArray rocketAccessible = new JsonArray();
+        try {
+            Object candidate = server.registryAccess().registry(registryKey).orElse(null);
+            if (candidate instanceof Registry<?> registry) {
+                registry.keySet().stream()
+                        .map(Object::toString)
+                        .sorted()
+                        .forEach(rocketAccessible::add);
+            } else {
+                if (net.minecraftforge.fml.ModList.get().isLoaded("creatingspace")) {
+                    issues.add("loaded Creating Space has no " + registryId + " registry");
+                }
+            }
+        } catch (Throwable error) {
+            issues.add(issue(registryId.toString(), error));
+        }
+
+        out.addProperty("registry", registryId.toString());
+        out.addProperty("loaded_dimension_count", loaded.size());
+        out.addProperty("rocket_accessible_dimension_count", rocketAccessible.size());
+        out.addProperty("error_count", issues.size());
+        out.addProperty("complete", issues.isEmpty());
+        out.addProperty("evidence_mode", "live_server_levels_and_dynamic_registry_keys");
+        out.addProperty("limitation", "Registry membership proves configured destinations, not that terrain generation, arrival safety, or rocket travel succeeds.");
+        out.add("loaded_dimensions", loaded);
+        out.add("rocket_accessible_dimensions", rocketAccessible);
+        out.add("issues", issues);
+        return out;
+    }
+
+    static JsonArray sortedIds(Collection<ResourceLocation> ids) {
+        JsonArray rows = new JsonArray();
+        ids.stream().map(ResourceLocation::toString).sorted().forEach(rows::add);
+        return rows;
     }
 
     private static void addRegistry(JsonObject out, JsonObject counts, String name, EncodedRegistry encoded) {

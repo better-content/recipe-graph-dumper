@@ -52,6 +52,7 @@ public final class RecipeGraphExporter {
     private static final String LOOT_SCHEMA = "bc.loot.v1";
     private static final String TRADE_SCHEMA = "bc.trades.v1";
     private static final String WORLDGEN_SCHEMA = "bc.worldgen.v1";
+    private static final String DIMENSIONS_SCHEMA = "bc.dimensions.v1";
     private static final String LIGHTING_SCHEMA = "bc.lighting.v1";
 
     private RecipeGraphExporter() {}
@@ -130,6 +131,9 @@ public final class RecipeGraphExporter {
             JsonObject worldgen = envelope(WORLDGEN_SCHEMA, snapshotId, generatedAt, server);
             copyInto(worldgen, RuntimeEvidenceExporter.worldgen(server.registryAccess()));
 
+            JsonObject dimensions = envelope(DIMENSIONS_SCHEMA, snapshotId, generatedAt, server);
+            copyInto(dimensions, RuntimeEvidenceExporter.dimensions(server));
+
             JsonObject lighting = envelope(LIGHTING_SCHEMA, snapshotId, generatedAt, server);
             copyInto(lighting, LightingExporter.export());
 
@@ -140,18 +144,21 @@ public final class RecipeGraphExporter {
             writeAtomic(output.resolve("loot.json"), loot);
             writeAtomic(output.resolve("trades.json"), trades);
             writeAtomic(output.resolve("worldgen.json"), worldgen);
+            writeAtomic(output.resolve("dimensions.json"), dimensions);
             writeAtomic(output.resolve("lighting.json"), lighting);
 
             int runtimeEvidenceErrors = loot.get("error_count").getAsInt()
                     + trades.get("error_count").getAsInt()
                     + worldgen.get("error_count").getAsInt()
+                    + dimensions.get("error_count").getAsInt()
                     + lighting.get("error_count").getAsInt();
             boolean complete = isComplete(partial, errors, runtimeEvidenceErrors)
                     && loot.get("complete").getAsBoolean()
                     && trades.get("sample_contract_complete").getAsBoolean()
                     && worldgen.get("complete").getAsBoolean()
+                    && dimensions.get("complete").getAsBoolean()
                     && lighting.get("complete").getAsBoolean();
-            JsonObject completion = envelope("bc.runtime_dump_completion.v2", snapshotId, generatedAt, server);
+            JsonObject completion = envelope("bc.runtime_dump_completion.v3", snapshotId, generatedAt, server);
             completion.addProperty("recipe_count", recipes.size());
             completion.addProperty("partial_count", partial);
             completion.addProperty("error_count", errors);
@@ -168,10 +175,11 @@ public final class RecipeGraphExporter {
             surfaces.add("loot", surface("exact_loaded_tables", loot.get("complete").getAsBoolean(), false));
             surfaces.add("trades", surface("deterministic_sample", trades.get("sample_contract_complete").getAsBoolean(), true));
             surfaces.add("worldgen", surface("exact_registry_serialization", worldgen.get("complete").getAsBoolean(), false));
+            surfaces.add("dimensions", surface("live_server_levels_and_dynamic_registry_keys", dimensions.get("complete").getAsBoolean(), false));
             surfaces.add("lighting", surface("live_registry_and_loaded_mod_resource_scan", lighting.get("complete").getAsBoolean(), false));
             completion.add("surfaces", surfaces);
             JsonArray files = new JsonArray();
-            for (String name : List.of("recipes.json", "registries.json", "tags.json", "mods.json", "loot.json", "trades.json", "worldgen.json", "lighting.json")) {
+            for (String name : List.of("recipes.json", "registries.json", "tags.json", "mods.json", "loot.json", "trades.json", "worldgen.json", "dimensions.json", "lighting.json")) {
                 files.add(name);
             }
             completion.add("files", files);

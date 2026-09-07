@@ -18,6 +18,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 final class RecipeGraphExporterTest {
     @Test
+    void dimensionIdentifiersAreStableAndSorted() {
+        JsonArray rows = RuntimeEvidenceExporter.sortedIds(List.of(
+                ResourceLocation.tryParse("twilightforest:twilight_forest"),
+                ResourceLocation.tryParse("minecraft:overworld"),
+                ResourceLocation.tryParse("creatingspace:mars")));
+        assertEquals(
+                List.of("creatingspace:mars", "minecraft:overworld", "twilightforest:twilight_forest"),
+                rows.asList().stream().map(element -> element.getAsString()).toList());
+    }
+
+    @Test
     void detectsTagSelectorsWithoutMisclassifyingExplicitAlternatives() {
         assertEquals("minecraft:planks", RecipeGraphExporter.ingredientTag(
                 JsonParser.parseString("{\"tag\":\"minecraft:planks\"}")));

@@ -3,8 +3,14 @@
 Server-authoritative Forge 1.20.1 diagnostic mod. An operator can run
 `/runtimedata dump` to export the final live recipe manager, registries, tags,
 effective loot tables, sampled effective villager offers, worldgen registries,
-lighting, and mod list under `generated/runtime-dumps/` in the server directory. Every
+lighting, loaded dimensions, the live Creating Space rocket-accessible-dimension registry,
+and mod list under `generated/runtime-dumps/` in the server directory. Every
 file shares one snapshot ID so offline tooling can reject mixed evidence.
+
+`dimensions.json` uses `bc.dimensions.v1`. It records sorted loaded dimension IDs and, when
+Creating Space is loaded, the sorted contents of its dynamic
+`creatingspace:rocket_accessible_dimension` registry. A missing registry makes the surface and
+aggregate snapshot incomplete instead of silently producing an empty inventory.
 
 `lighting.json` enumerates every live registered block state and fluid with positive
 light emission. When Sodium Dynamic Lights is loaded, it also records automatic
@@ -26,7 +32,8 @@ with 16 deterministic seeds for every villager type. It preserves dynamic
 listing classes and representative offer NBT without claiming that a finite
 sample enumerates every possible randomized offer.
 
-`snapshot.json` is complete only when every live recipe has a fully normalized
+`snapshot.json` and `completion.json` (`bc.runtime_dump_completion.v3`) are complete only when
+every live recipe has a fully normalized
 machine edge, every serializer payload succeeds, and the exact loot/worldgen
 plus sampled-trade export contracts report no errors. Incomplete rows and raw
 serializer payloads are retained for adapter work, but the command returns a
@@ -67,10 +74,10 @@ excludes 100-health boss-class entries from percentile selection, and derives
 the pack's Trash/Elite/Boss armor representatives at P50/P75/P90. It changes no
 entities and performs no automatic difficulty scaling.
 
-Build and test the reobfuscated runtime JAR with:
+Build, test, and stage the reobfuscated runtime JAR with:
 
 ```sh
-./gradlew clean test reobfJar
+./gradlew build stageRuntimeJar
 ```
 
 ## Canonical identity
